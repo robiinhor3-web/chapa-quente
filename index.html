@@ -123,7 +123,14 @@ const UP=[
  {id:'bacon',nome:'🥓 Bacon no cardápio',desc:'Bacon crocante (+R$3)',c:[200]},
  {id:'mkt',nome:'💡 Letreiro neon',desc:'+25% de clientes',c:[120,300]},
  {id:'patio',nome:'⛱️ Área externa',desc:'2 mesas com guarda-sol (e cadeiras) pra pôr na calçada',c:[260]},
- {id:'helper',nome:'🧑‍🍳 Ajudante',desc:'Enche os refris sozinho',c:[350],req:'drink'},
+ {id:'helper',nome:'🥤 Ajudante do refri',desc:'Enche os copos de refri sozinho',c:[350],req:'drink'},
+ {id:'hchef',nome:'🥩 Chapeiro',desc:'Assa a carne na chapa, joga fora a queimada e põe a carne pronta no lanche • Nível 2: mais rápido',c:[400,700]},
+ {id:'hmont',nome:'🍞 Montadora',desc:'Põe o pão na tábua e as coberturas certas de cada pedido • Nível 2: mais rápido',c:[380,650]},
+ {id:'hfry',nome:'🍟 Fritador',desc:'Frita a batata quando tem pedido • Nível 2: mais rápido',c:[250,450],req:'fries'},
+ {id:'hmach',nome:'🍕 Ajudante das máquinas',desc:'Faz cachorro-quente, pizza, pastel, suco, milkshake, sorvete, bolo e açaí dos pedidos • Nível 2: mais rápido',c:[450,750]},
+ {id:'hgarcom',nome:'🛎️ Atendente',desc:'Entrega no balcão os pedidos que estão prontos • Nível 2: mais rápido',c:[500,800]},
+ {id:'hclean',nome:'🧽 Faxineiro',desc:'Limpa as mesas sujas e o chão sozinho • Nível 2: mais rápido',c:[300,550]},
+ {id:'hdrive',nome:'🚗 Atendente do drive-thru',desc:'Monta, assa e entrega os lanches do drive-thru • Nível 2: mais rápido',c:[600,900]},
  {id:'gourmet',nome:'⭐ Cardápio gourmet',desc:'Todos os preços +25%',c:[300,600]},
  {id:'mop',nome:'🧽 Esfregão turbo',desc:'Limpa 2x mais rápido',c:[70]},
  {id:'board',nome:'🍞 Balcão de montagem maior',desc:'+1 lanche montado ao mesmo tempo na tábua (até 5)',c:[40,90,160,280]},
@@ -150,9 +157,10 @@ const SHOPS=[
  {id:'acougue',int:1,nome:'Açougue do Zé',e:'🥩',cor:0xb23a3a,x:-122,z:-2,rot:0,itens:[{ing:'carne',q:10,p:18},{ing:'carne',q:25,p:40},{up:'bacon'},{ing:'bacon',q:10,p:14},{ing:'salsicha',q:10,p:12}]},
  {id:'horti',int:1,nome:'Hortifrúti Verdinho',e:'🥬',cor:0x4f9a3a,x:74,z:-2,rot:0,itens:[{up:'salad'},{ing:'salada',q:10,p:7},{ing:'batata',q:10,p:10},{ing:'laranja',q:10,p:10}]},
  {id:'mercado',int:1,nome:'Mercadinho Bom Preço',e:'🛒',cor:0x2f7fc4,x:116,z:26,rot:Math.PI,itens:[{up:'cheese'},{ing:'queijo',q:10,p:9},{ing:'refri',q:10,p:12},{ing:'leite',q:10,p:12}]},
- {id:'equip',int:1,nome:'Casa dos Equipamentos',e:'🔧',cor:0x6b6f78,x:-94,z:26,rot:Math.PI,itens:[{up:'exp'},{up:'grill'},{up:'dgrill'},{up:'turbo'},{up:'fries'},{up:'drink'},{up:'board'},{up:'hotdog'},{up:'pizza'},{up:'suco'},{up:'pastel'},{up:'milkshake'},{up:'helper'},{up:'mop'}]},
+ {id:'equip',int:1,nome:'Casa dos Equipamentos',e:'🔧',cor:0x6b6f78,x:-94,z:26,rot:Math.PI,itens:[{up:'exp'},{up:'grill'},{up:'dgrill'},{up:'turbo'},{up:'fries'},{up:'drink'},{up:'board'},{up:'hotdog'},{up:'pizza'},{up:'suco'},{up:'pastel'},{up:'milkshake'},{up:'mop'}]},
  {id:'deco',int:1,nome:'Decoração & Cia',e:'🌿',cor:0xc0579a,x:46,z:26,rot:Math.PI,itens:[{up:'tables'},{up:'chair'},{up:'decor'},{up:'mkt'},{up:'patio'},{up:'gourmet'}]},
  {id:'doceria',int:1,nome:'Doceria Doce Mel',e:'🍰',cor:0xe0559a,x:-38,z:26,rot:Math.PI,itens:[{up:'sorvete'},{ing:'sorvete',q:10,p:15},{up:'bolo'},{ing:'bolo',q:8,p:20},{up:'acai'},{ing:'acai',q:10,p:22}]},
+ {id:'agencia',int:1,nome:'Agência de Ajudantes',e:'🧑‍🍳',cor:0x7b3fa0,x:88,z:26,rot:Math.PI,itens:[{up:'hchef'},{up:'hmont'},{up:'hfry'},{up:'helper'},{up:'hmach'},{up:'hgarcom'},{up:'hclean'},{up:'hdrive'}]},
  {id:'tintas',int:1,nome:'Tintas & Pisos Cor Viva',e:'🎨',cor:0x2a9d8f,x:-52,z:-2,rot:0,paint:1,itens:[]},
 ];
 // MAPA DE TESTE: true = dinheiro e gasolina infinitos (só pra testar). Jogo oficial = false.
@@ -862,6 +870,8 @@ for(let x=-150;x<=150;x+=14){if(Math.abs(x)<14||Math.abs(x-34)<9||isShopX(x,fals
 // ---- LOJINHAS DO BAIRRO (comprar ingredientes e melhorias) ----
 const shopKeepers=[];
 function prodItem(kind){const g=new THREE.Group();const r=()=>Math.random()-.5;
+ if(kind==='agencia'){const wm=mat(0xf7f7f2,{roughness:.6});const ap=[0x7b3fa0,0xd8343b,0x2f7fc4,0xf2b134];for(let i=0;i<4;i++){const h=new THREE.Group();h.add(fm(new THREE.CylinderGeometry(.09,.09,.12,20),wm,.06));const t=fm(new THREE.SphereGeometry(.12,16,12),wm,.17);t.scale.y=.7;h.add(t);h.position.set(-.75+i*.22,0,-.05);g.add(h)}
+  for(let i=0;i<4;i++){const a=fm(new THREE.BoxGeometry(.2,.02,.28),mat(ap[i],{roughness:.8}),.01+i*.022);a.position.set(.45,0,0);a.rotation.y=r()*.3;g.add(a)}return g}
  if(kind==='padaria'){for(let i=0;i<9;i++){const b=fm(fgeo(.1).bunT,FM.bun,0);b.position.set((i%3-1)*.22,0,(Math.floor(i/3)-1)*.2);g.add(b)}
   for(let i=0;i<3;i++){const l=fm(new THREE.CapsuleGeometry(.07,.4,6,12),FM.bun,.07);l.rotation.z=Math.PI/2;l.position.set(.75,0,(i-1)*.18);l.position.y=.07;g.add(l)}}
  else if(kind==='acougue'){const mm=new THREE.MeshPhysicalMaterial({color:0xc2443c,roughness:.45,clearcoat:.4,map:FM.pattyTex});for(let i=0;i<6;i++){const m=fm(rb(.3,.08,.2,.04),mm,.04);m.position.set((i%3-1)*.33,.04,(i<3?-.13:.13));m.rotation.y=r()*.4;g.add(m)}
@@ -1123,7 +1133,7 @@ const POSTO={x:-24,z:0,pumps:[]};
 
 let clockH,clockM;const fans=[];
 // =============== DECORAÇÃO ===============
-const decor=new THREE.Group();S.add(decor);let seats=[];let helperNPC=null;const TABLES={},SEATMAP={};
+const decor=new THREE.Group();S.add(decor);let seats=[];const TABLES={},SEATMAP={};
 const metalD=mat(0x2d2d2d,{metalness:.7,roughness:.4}),darkWood=mat(0x3b2416,{roughness:.6});
 function chair(g,x,z,rot,col=0xb8322a){const c=new THREE.Group();c.add(bx(.44,.06,.44,mat(col,{roughness:.45}),0,.42,0,.02));c.add(bx(.44,.5,.05,mat(col,{roughness:.45}),0,.68,-.2,.02));
  for(const [lx,lz] of[[-.19,-.19],[.19,-.19],[-.19,.19],[.19,.19]])c.add(cy(.02,.41,metalD,lx,.205,lz,8));c.position.set(x,.08,z);c.rotation.y=rot;g.add(c)}
@@ -1200,8 +1210,7 @@ function buildDecor(){ensureFurn();decor.clear();const d=L('decor');const keep=c
  if(d>=3){const n=Math.floor((RX+6)/1.5)+1;for(let i=0;i<n;i++)decor.add(sph(.07,new THREE.MeshStandardMaterial({color:0xfff2c0,emissive:0xffc060,emissiveIntensity:3}),-6+i*1.5,3.6+Math.sin(i)*.1,FZ-.7));
   for(const [r,c] of[[.3,0xff3df0],[.22,0x3dfff0]]){const t=mesh(new THREE.TorusGeometry(r,.02,8,40),new THREE.MeshStandardMaterial({color:c,emissive:c,emissiveIntensity:2.5}),RX-.195,2.6,2.75,false);t.rotation.y=Math.PI/2;decor.add(t)}}
  signNeon.visible=L('mkt')>0;signPlain.visible=!signNeon.visible;
- if(helperNPC){dropChar(helperNPC);helperNPC=null}
- if(L('helper')){helperNPC=mkChar({sex:'M',h:1.74,idle:AN.counter,hair:'hair-buzzed',hc:0x222222,skin:SKIN.parda,cap:0xc8322a,clothes:{shirt:'#f4f4f4',sleeve:'short',pants:'#333',shoes:'#222'}});helperNPC.position.set(-3.9,.08,-3.35);helperNPC.rotation.y=Math.PI;S.add(helperNPC)}
+ buildHelpers();
  buildFurn()}
 function refreshStations(){if(shellLv!==L('exp'))buildShell();refreshBins();for(const k in MACH)MACH[k].obj.visible=L(k)>0;rebuildStack();bins.cheese.visible=L('cheese')>0;bins.salad.visible=L('salad')>0;bins.bacon.visible=L('bacon')>0;fryer.visible=L('fries')>0;drink.visible=L('drink')>0;
  slots.forEach((s,i)=>s.pad.visible=i<2+L('grill'));dslots.forEach((s,i)=>s.pad.visible=i<dSlotsN());dBins.queijo.visible=L('cheese')>0;buildDecor()}
@@ -1343,12 +1352,12 @@ function spawnDrive(){if(dcars.filter(c=>!c.out).length>=3||dcars.some(c=>c.s<10
  const c={g,s:0,v:8,yaw:Math.PI/2,order:genDOrder(),pat,max:pat,num:++dNo,el:document.createElement('div'),out:false,at:false};c.el.className='bub';c.el.style.display='none';$('bubbles').appendChild(c.el);dcars.push(c);renderDBub(c);return c}
 function clearDrive(){dcars.forEach(c=>{S.remove(c.g);c.el.remove()});dcars=[];dburgers=[];dActive=0;rebuildD();dslots.forEach(s=>{s.state='empty';s.pat.visible=false;s.ring.visible=false})}
 function honk(){beep(392,.16,'square',.05);setTimeout(()=>beep(392,.24,'square',.05),220)}
-function deliverDrive(){if(state!=='play')return;const c=dcars.find(c=>c.at&&!c.out);if(!c)return msg('Nenhum carro na janela do drive-thru agora',1);
+function deliverDrive(by){if(state!=='play')return;const c=dcars.find(c=>c.at&&!c.out);if(!c)return msg('Nenhum carro na janela do drive-thru agora',1);
  const used=[],falta=[];for(const b of c.order){const i=dburgers.findIndex((x,k)=>!used.includes(k)&&x.patty&&x.cheese===b.cheese);if(i<0)falta.push(b.cheese?'🍔 com 🧀 queijo':'🍔 sem queijo');else used.push(i)}
  if(falta.length)return msg('Falta: '+falta.join(', ')+' (monte na tábua do drive)',1);
  dburgers=dburgers.filter((x,k)=>!used.includes(k));dActive=0;rebuildD();
  const base=dPrice(c.order),tip=base*.5*(c.pat/c.max),v=Math.round((base+tip)*100)/100;G.money+=v;dayStats.earn+=v;dayStats.ok++;dayStats.drive=(dayStats.drive||0)+1;
- pop('+R$ '+v.toFixed(2).replace('.',','),c.g.position);sCash();c.out=true;c.at=false;c.el.style.display='none';msg('🚗 Pedido entregue no drive-thru!');playOnce(esther,AN.give,null,1.3)}
+ pop('+R$ '+v.toFixed(2).replace('.',','),c.g.position);sCash();c.out=true;c.at=false;c.el.style.display='none';msg('🚗 Pedido entregue no drive-thru!');playOnce(by||esther,AN.give,null,1.3)}
 function updDrive(dt){
  const rate=(1+.25*L('mkt'))*(1+Math.min(G.day,10)*.03);dSpawnT-=dt;if(dSpawnT<=0&&tLeft>40){spawnDrive();dSpawnT=(30+Math.random()*20)/rate}
  const sorted=[...dcars].sort((a,b)=>b.s-a.s);
@@ -1392,7 +1401,7 @@ const CLEAN_ANIM=AN.clean;const HANDPOS=V(0,.03,.04),HANDROT=new THREE.Euler(-.5
 function startClean(tgt){const u=esther.userData;player.clean=tgt;const d=L('mop')?1.2:2.4;
  const p=tgt.t?V(tgt.t.x,0,tgt.t.z):V(tgt.sp.x,0,tgt.sp.z);player.face=Math.atan2(p.x-player.pos.x,p.z-player.pos.z);
  play(esther,CLEAN_ANIM,{speed:1.3});u.lock=d;u.after=()=>{player.clean=null;
-  if(tgt.t)cleanTable(tgt.t);else{S.remove(tgt.sp.m);spills.splice(spills.indexOf(tgt.sp),1)}dayStats.clean++;pop('✨ Limpo!',p);beep(1200,.08,'triangle');setTimeout(()=>beep(1600,.1,'triangle'),70)}}
+  if(tgt.t)cleanTable(tgt.t);else{const i=spills.indexOf(tgt.sp);if(i<0)return;S.remove(tgt.sp.m);spills.splice(i,1)}dayStats.clean++;pop('✨ Limpo!',p);beep(1200,.08,'triangle');setTimeout(()=>beep(1600,.1,'triangle'),70)}}
 const dirtEls=[];function dirtLabel(i){if(!dirtEls[i]){const e=document.createElement('div');e.className='lbl dirty';$('labels').appendChild(e);dirtEls[i]=e}return dirtEls[i]}
 
 // =============== ESTOQUE ===============
@@ -1435,8 +1444,7 @@ function deliver(c){if(state!=='play'||!c.inQ)return;const o=c.order,falta=[];
  const dn=dirtyCount(),base=price(o)*(c.vip?2:1),tip=base*.5*(c.pat/c.max)*Math.max(0,1-.3*dn),v=Math.round((base+tip)*100)/100;G.money+=v;dayStats.earn+=v;dayStats.ok++;
  pop('+R$ '+v.toFixed(2).replace('.',','),c.m.position);sCash();served(c)}
 function autoDeliver(){if(state!=='play')return;if(player.edit)return rotF();if(inBooth(player.pos))return deliverDrive();const w=customers.filter(c=>c.inQ);if(!w.length)return msg('Nenhum cliente esperando',1);
- const can=c=>{const o=c.order;if(o.burger&&!burgers.some(b=>b.patty&&b.cheese===o.cheese&&b.salad===o.salad&&b.bacon===o.bacon))return false;for(const [k] of ITEMS)if(o[k]&&readyOf(k)<1)return false;return true};
- const ok=w.filter(can).sort((a,b)=>a.pat-b.pat);if(ok.length)return deliver(ok[0]);deliver(w.sort((a,b)=>a.m.position.distanceTo(player.pos)-b.m.position.distanceTo(player.pos))[0])}
+ const ok=w.filter(canServe).sort((a,b)=>a.pat-b.pat);if(ok.length)return deliver(ok[0]);deliver(w.sort((a,b)=>a.m.position.distanceTo(player.pos)-b.m.position.distanceTo(player.pos))[0])}
 const v3=V();function toScreen(p,el,dy=0){v3.copy(p);v3.project(cam);if(v3.z>1){el.style.display='none';return false}el.style.left=(v3.x*.5+.5)*innerWidth+'px';el.style.top=(-v3.y*.5+.5)*innerHeight+dy+'px';return true}
 function pop(t,pos,col){const d=document.createElement('div');d.className='pop';d.textContent=t;if(col)d.style.color=col;document.body.appendChild(d);toScreen(V(pos.x,pos.y+2.2,pos.z),d);requestAnimationFrame(()=>{d.style.top=parseFloat(d.style.top)-70+'px';d.style.opacity=0});setTimeout(()=>d.remove(),1200)}
 
@@ -1648,6 +1656,88 @@ function interact(){if(state!=='play'||player.clean)return;
  if(mopHeld)return msg('Guarde o 🧽 esfregão no balde antes de cozinhar',1);
  act(a,target.slot);playOnce(esther,AN.use,null,1.8)}
 
+// =============== AJUDANTES (Agência de Ajudantes) ===============
+// cada ajudante faz um serviço sozinho (menos repor estoque). Nível 2 = trabalha mais rápido.
+const HDEF={
+ helper:{look:{sex:'M',hair:'hair-buzzed',hc:0x222222,skin:SKIN.parda,cap:0xc8322a,clothes:{shirt:'#f4f4f4',sleeve:'short',pants:'#333',shoes:'#222'}},h:1.74,x:-3.9,z:-4.4,r:Math.PI},
+ hchef:{look:{sex:'M',hair:'hair-simpleparted',hc:0x3a2a1a,skin:SKIN.clara,cap:0xf4f4f4,clothes:{shirt:'#f4f4f4',sleeve:'long',pants:'#2c3550',shoes:'#222'}},h:1.78,x:2.6,z:-4.4,r:Math.PI},
+ hmont:{look:{sex:'F',hair:'hair-buns',hc:0x2a1b10,skin:SKIN.morena,cap:0xf2b134,clothes:{shirt:'#f2b134',sleeve:'short',pants:'#333',shoes:'#f4f4f4'}},h:1.64,x:-.95,z:-1.7,r:0},
+ hfry:{look:{sex:'M',hair:'hair-buzzed',hc:0x111111,skin:SKIN.negra,cap:0xd8343b,clothes:{shirt:'#d8343b',sleeve:'short',pants:'#333',shoes:'#222'}},h:1.72,x:-1.1,z:-4.4,r:Math.PI},
+ hmach:{look:{sex:'F',afro:1,hc:0x111111,skin:SKIN.retinta,clothes:{shirt:'#2e7d4f',sleeve:'short',pants:'#2c3550',shoes:'#f4f4f4'}},h:1.66,x:1.0,z:-3.2,r:Math.PI,walk:1},
+ hgarcom:{look:{sex:'F',hair:'hair-long',hc:0xa0412a,skin:SKIN.clara,clothes:{shirt:'#1f2937',sleeve:'long',pants:'#1f2937',shoes:'#222'}},h:1.68,x:3.3,z:-1.7,r:0},
+ hclean:{look:{sex:'M',hair:'hair-buzzed',beard:1,hc:0x2a1b10,skin:SKIN.parda,cap:0x2f7fc4,clothes:{shirt:'#2f7fc4',sleeve:'short',pants:'#2f7fc4',shoes:'#222'}},h:1.75,x:5.9,z:.9,r:-Math.PI/2,walk:1},
+ hdrive:{look:{sex:'F',curly:1,hc:0x2a1b10,skin:SKIN.morena,cap:0x7b3fa0,clothes:{shirt:'#7b3fa0',sleeve:'short',pants:'#333',shoes:'#222'}},h:1.66,x:-8.8,z:-3.4,r:Math.PI},
+};
+const H={};let hKey='';
+function buildHelpers(force){const key=Object.keys(HDEF).map(k=>L(k)).join();if(key===hKey&&!force)return;hKey=key;
+ for(const k in H){dropChar(H[k].m);delete H[k]}
+ for(const k in HDEF){if(!L(k))continue;const d=HDEF[k];const m=mkChar({...d.look,h:d.h,idle:AN.counter});m.position.set(d.x,.08,d.z);m.rotation.y=d.r;S.add(m);H[k]={id:k,m,d,home:V(d.x,.08,d.z),cd:1+Math.random(),path:null,job:null}}}
+const qOrders=()=>customers.filter(c=>c.slot>=0).map(c=>c.order);
+const TOPS=['cheese','salad','bacon'],TOPING={cheese:'queijo',salad:'salada',bacon:'bacon'};
+// pareia os lanches da tábua com os pedidos (primeiro os iguais, depois os que ainda podem virar o pedido)
+function matchB(list,specs,tops){const asg=new Map(),used=new Set();
+ for(const pass of[0,1])list.forEach((b,i)=>{if(asg.has(i))return;const j=specs.findIndex((s,k)=>!used.has(k)&&tops.every(t=>pass?(!b[t]||s[t]):!!b[t]===!!s[t]));if(j>=0){asg.set(i,specs[j]);used.add(j)}});
+ return{asg,free:specs.filter((s,k)=>!used.has(k))}}
+function canServe(c){const o=c.order;if(o.burger&&!burgers.some(b=>b.patty&&b.cheese===o.cheese&&b.salad===o.salad&&b.bacon===o.bacon))return false;for(const [k] of ITEMS)if(o[k]&&readyOf(k)<1)return false;return true}
+const bSpecs=()=>qOrders().filter(o=>o.burger).map(o=>({cheese:o.cheese,salad:o.salad,bacon:o.bacon}));
+const offGrill=s=>{s.state='empty';s.pat.visible=false;s.ring.visible=false};
+const onGrill=s=>{use('carne');s.state='raw';s.t=0;s.pat.visible=true;s.pat.rotation.y=Math.random()*6};
+const HTICK={
+ helper(){if(!drk.on&&drk.ready<3&&G.stock.refri>0){use('refri');drk.on=true;drk.t=0;return 'use'}},
+ hmont(){const {asg,free}=matchB(burgers,bSpecs(),TOPS);
+  for(const [i,s] of asg){const b=burgers[i];for(const t of TOPS){const ing=TOPING[t];if(s[t]&&!b[t]&&G.stock[ing]>0){use(ing);b[t]=true;rebuildStack();return 'use'}}}
+  if(free.length&&burgers.length<boardCap()&&G.stock.pao>0){use('pao');burgers.push({patty:false,cheese:false,salad:false,bacon:false});rebuildStack();return 'use'}},
+ hchef(){const ct=cookT(),bt=burnT(),on=s=>s.pad.visible&&s.state==='raw';
+  let s=slots.find(s=>on(s)&&s.t>=bt);if(s){offGrill(s);return 'use'}
+  const {asg,free}=matchB(burgers,bSpecs(),TOPS),nop=burgers.filter(b=>!b.patty);
+  s=slots.find(s=>on(s)&&s.t>=ct);
+  if(s&&nop.length){const b=nop.find(b=>asg.has(burgers.indexOf(b)))||nop[0];b.patty=true;offGrill(s);rebuildStack();return 'use'}
+  const want=nop.length+(L('hmont')?Math.min(free.length,boardCap()-burgers.length):0);
+  if(slots.filter(on).length<want){s=slots.find(s=>s.pad.visible&&s.state==='empty');if(s&&G.stock.carne>0){onGrill(s);beep(220,.25,'sawtooth',.03);return 'use'}}},
+ hfry(){const d=qOrders().filter(o=>o.fries).length;if(L('fries')&&!fry.on&&fry.ready<3&&fry.ready<d&&G.stock.batata>0){use('batata');fry.on=true;fry.t=0;return 'use'}},
+ hmach(h){const k=machJob();if(!k)return;h.job={k};h.path=[machSpot(MACH[k])];return 'go'},
+ hgarcom(h){const free=seats.filter(s=>!s.busy),clean=free.filter(s=>!s.table.dirty);
+  const w=customers.filter(c=>c.inQ&&c.state==='wait'&&canServe(c)&&(c.pairSeat||clean.length||!free.length)).sort((a,b)=>a.pat-b.pat);if(!w.length)return;
+  const c=w[0];h.m.rotation.y=Math.atan2(c.m.position.x-h.m.position.x,c.m.position.z-h.m.position.z);deliver(c);return 'give'},
+ hclean(h){const ts=activeTables().filter(t=>t.dirty&&!(player.clean&&player.clean.t===t)).map(t=>({t,p:V(t.x,0,t.z)}));
+  const ss=spills.filter(sp=>!(player.clean&&player.clean.sp===sp)).map(sp=>({sp,p:V(sp.x,0,sp.z)}));
+  const all=ts.concat(ss).sort((a,b)=>a.p.distanceTo(h.m.position)-b.p.distanceTo(h.m.position));if(!all.length)return;
+  const j=all[0],p=j.p,side=h.m.position.x<p.x?-1:1;h.job=j;h.path=pathFrom(h.m.position,V(p.x+side*(j.t?.85:.6),0,p.z));return 'go'},
+ hdrive(h){const ct=dCookT(),bt=burnT(),on=s=>s.pad.visible&&s.state==='raw';
+  const cw=dcars.find(c=>c.at&&!c.out);if(cw){const used=[];let ok=true;for(const b of cw.order){const i=dburgers.findIndex((x,k)=>!used.includes(k)&&x.patty&&x.cheese===b.cheese);if(i<0){ok=false;break}used.push(i)}if(ok){deliverDrive(h.m);return 'done'}}
+  let s=dslots.find(s=>on(s)&&s.t>=bt);if(s){offGrill(s);return 'use'}
+  const specs=dcars.filter(c=>!c.out).flatMap(c=>c.order.map(b=>({cheese:b.cheese})));const {asg,free}=matchB(dburgers,specs,['cheese']),nop=dburgers.filter(b=>!b.patty);
+  s=dslots.find(s=>on(s)&&s.t>=ct);if(s&&nop.length){const b=nop.find(b=>asg.has(dburgers.indexOf(b)))||nop[0];b.patty=true;offGrill(s);rebuildD();return 'use'}
+  for(const [i,sp] of asg){const b=dburgers[i];if(sp.cheese&&!b.cheese&&G.stock.queijo>0){use('queijo');b.cheese=true;rebuildD();return 'use'}}
+  if(free.length&&dburgers.length<DCAP&&G.stock.pao>0){use('pao');dburgers.push({patty:false,cheese:false,salad:false,bacon:false});rebuildD();return 'use'}
+  const want=nop.length+Math.min(free.length,DCAP-dburgers.length);
+  if(dslots.filter(on).length<want){s=dslots.find(s=>s.pad.visible&&s.state==='empty');if(s&&G.stock.carne>0){onGrill(s);return 'use'}}},
+};
+const machOk=(m,os)=>{if(!m.obj.visible||m.on)return false;const d=os.filter(o=>o[m.id]).length;return m.ready<d&&m.ready+m.batch<=m.max&&G.stock[m.ing]>0&&(!m.ing2||G.stock[m.ing2]>0)};
+function machJob(){const os=qOrders();for(const k in MACH)if(machOk(MACH[k],os))return k;return null}
+const machSpot=m=>{const p=m.obj.position;return p.z<-3?V(Math.max(-5.4,p.x),.08,-4.4):V(p.x,.08,-1.7)};
+function hMove(h,dt){const p=h.m.position,t=h.path[0],dx=t.x-p.x,dz=t.z-p.z,d=Math.hypot(dx,dz);if(d<.06){h.path.shift();return 0}
+ const sp=2.4,st=Math.min(sp*dt,d);p.x+=dx/d*st;p.z+=dz/d*st;let dr=Math.atan2(dx,dz)-h.m.rotation.y;dr=Math.atan2(Math.sin(dr),Math.cos(dr));h.m.rotation.y+=dr*Math.min(1,dt*10);
+ p.y+=(groundY(p.x,p.z)-p.y)*Math.min(1,dt*10);return sp}
+// ajudante que anda chegou no lugar do serviço
+function hArrive(h){const j=h.job,u=h.m.userData;
+ if(h.id==='hmach'){const m=MACH[j.k];h.job=null;if(!machOk(m,qOrders()))return;h.m.rotation.y=m.obj.position.z<-3?Math.PI:0;use(m.ing);if(m.ing2)use(m.ing2);m.on=true;m.t=0;beep(300,.15,'triangle',.04);playOnce(h.m,AN.use,null,1.8);return}
+ if(h.id==='hclean'){if(j.started)return;const still=j.t?j.t.dirty:spills.includes(j.sp);if(!still||(player.clean&&(player.clean.t===j.t&&j.t||player.clean.sp===j.sp&&j.sp))){h.job=null;return}
+  j.started=true;h.m.rotation.y=Math.atan2(j.p.x-h.m.position.x,j.p.z-h.m.position.z);const mop=mkMop();attach(h.m,mop,'hand_r',MOPPOS.clone(),MOPROT.clone());
+  play(h.m,CLEAN_ANIM,{speed:1.3});u.lock=(L('mop')?1.2:2.4)*(L('hclean')>=2?.75:1.15);u.after=()=>{detach(h.m,mop);h.job=null;
+   if(j.t){if(!j.t.dirty)return;cleanTable(j.t)}else{const i=spills.indexOf(j.sp);if(i<0)return;S.remove(j.sp.m);spills.splice(i,1)}
+   dayStats.clean++;pop('✨ Limpo!',j.p);beep(1200,.08,'triangle')}}}
+function updHelpers(dt){for(const k in H){const h=H[k],u=h.m.userData,walking=h.path&&h.path.length;let sp=0;
+ if(walking&&u.lock<=0)sp=hMove(h,dt);
+ else if(!walking&&h.job&&u.lock<=0)hArrive(h);
+ h.cd-=dt;
+ if(h.cd<=0&&u.lock<=0&&!walking&&!h.job){h.cd=L(k)>=2?.7:1.4;const r=HTICK[k](h);
+  if(r==='use')playOnce(h.m,AN.use,null,1.8);else if(r==='give')playOnce(h.m,AN.give,null,1.3);
+  else if(!r&&h.d.walk&&h.m.position.distanceTo(h.home)>.3)h.path=k==='hclean'?[...pathFrom(h.m.position,h.home),h.home.clone()]:[h.home.clone()];
+  else if(!r&&!h.d.walk&&u.lock<=0)h.m.rotation.y=h.d.r}
+ if(h.d.walk&&!sp&&!h.job&&!walking&&u.lock<=0&&h.m.position.distanceTo(h.home)<.3)h.m.rotation.y=h.d.r;
+ animChar(h.m,dt,sp)}}
+
 // =============== LOJINHAS (menu de compra) ===============
 let shopOpen=null;
 function openShop(sh){if(state!=='play')return;state='shop';shopOpen=sh;if(document.pointerLockElement)document.exitPointerLock();drawShop();menuIdx=0;
@@ -1714,7 +1804,7 @@ function startDay(){state='play';extra=false;tLeft=DAY_LEN;clearDrive();dSpawnT=
  slots.forEach(s=>{s.state='empty';s.pat.visible=false;s.ring.visible=false});fry={on:false,t:0,ready:0};drk={on:false,t:0,ready:0};
  clearCustomers();Object.values(TABLES).forEach(cleanTable);if(EDIT.held)cancelHold();player.edit=false;fRing.visible=selRing.visible=false;spills.splice(0).forEach(s=>S.remove(s.m));holdMop(false);player.clean=null;
  player.pos.set(0,.08,-2.6);player.yaw=0;player.face=0;player.pitch=CFG.cam==='1p'?-.15:-.55;player.car=false;esther.visible=true;PC.pos.set(22.55,0,2.2);PC.yaw=0;PC.v=0;placeCar(PC,0);
- refreshStations();const s=sunFor(DAY_LEN);setSun(s.e,s.a,true);$('ov').style.display='none';
+ refreshStations();buildHelpers(true);const s=sunFor(DAY_LEN);setSun(s.e,s.a,true);$('ov').style.display='none';
  lockPtr();
  netStart();
  if(G.day===1)msg('Vá até o 🍞 pão e aperte E (ou A no controle)! Ingredientes acabam: compre nas lojinhas da rua.')}
@@ -1841,7 +1931,6 @@ function update(dt){const inp=readInput(dt);
    p.m.visible=cooking;p.m.position.y+=dt*.5;p.m.scale.setScalar(1+p.t);p.m.material.opacity=.16*(1-p.t/2)});
   if(fry.on){fry.t+=dt;basket.position.y=TOPY+.45+Math.sin(fry.t*20)*.01;if(fry.t>=5){fry.on=false;fry.ready++;basket.position.y=TOPY+.68;beep(990,.1)}}
   if(friesOut.children.length!==fry.ready){friesOut.clear();for(let i=0;i<fry.ready;i++){const f=mkFries(1.6);f.position.set(0,TOPY,-.25+i*.25);friesOut.add(f)}}
-  if(L('helper')&&!drk.on&&drk.ready<3&&G.stock.refri>0){use('refri');drk.on=true;drk.t=0}
   if(drk.on){drk.t+=dt;fillCup.visible=true;fillCup.scale.y=1.4*Math.max(.05,Math.min(1,drk.t/3));if(drk.t>=3){drk.on=false;drk.ready++;fillCup.visible=false;beep(990,.1)}}
   for(const k in MACH){const m=MACH[k];if(!m.obj.visible)continue;if(m.on){m.t+=dt;if(m.t>=m.time){m.on=false;m.ready=Math.min(m.max,m.ready+m.batch);beep(990,.1)}}
    if(m.mouth)m.mouth.material.emissiveIntensity=m.on?2.5+Math.sin(performance.now()/90)*.6:.6;
@@ -1871,7 +1960,7 @@ function update(dt){const inp=readInput(dt);
   if(!cartTip&&!player.cart&&storeAt(player.pos)&&!storeAt(player.pos).upShop){cartTip=true;msg('🛒 Pegue um carrinho na entrada, escolha nas prateleiras e pague no 💰 caixa')}
   // reclamações de sujeira
   compT-=dt;if(dn>0&&compT<=0){compT=16;const cs=customers.filter(c=>c.state==='wait'||c.state==='eat');if(cs.length){complain(pick(cs));msg('Os clientes estão reclamando da sujeira! Use o 🧽 esfregão',1)}}
-  if(helperNPC)animChar(helperNPC,dt,0);
+  updHelpers(dt);
   for(const k of shopKeepers)if(k.position.distanceTo(player.pos)<60)animChar(k,dt,0);
   target=findTarget();if(player.edit)editUpdate();
   const pr=$('prompt');if(player.edit){pr.style.display='block';const f=EDIT.held||(target&&target.f);
@@ -1919,7 +2008,7 @@ if(location.protocol.startsWith('http')&&'serviceWorker' in navigator&&!location
 if(ENT_ERR)setTimeout(()=>confirmBox('🌐 Não deu pra entrar',esc(ENT_ERR),'OK',showMenu,showMenu),60);
 {let au=0;try{au=sessionStorage.getItem('cqAuto');sessionStorage.removeItem('cqAuto')}catch(e){}if(au&&(CUR||GUEST)&&!location.hash.startsWith('#teste'))setTimeout(()=>startDay(),50)}
 // modo de teste (capturas automáticas): index.html#teste=...
-window.__CQ={cam,charCull,THREE_F:THREE.Frustum,NET,netSend,netHostT:()=>{NET.want=true;netSend({t:'host',name:'Lobby Teste',av:CFG.av,G})},showAvatar,showCreate,showMenuX:()=>showMenu(),pauseX:()=>pause(),bDoorX:()=>bDoor,autoDeliver,storeAct,stations,payCart,returnCart,deliverDrive,spawnDrive,dcars:()=>dcars,dSet:a=>{dburgers=a;rebuildD()},buildShell,QX,inBooth,closeShop,drawShop,cartObj,S_WIN,EDIT,toggleEdit,pickF,placeF,rotF,editUpdate,validFurn,autoPlace,newF,addTableSet,buildFurn,findPath,refreshStations,zones,FT,getFZ:()=>[FZ,RX],buy,UP,cars,V,PC,POSTO,enterCar,exitCar,openFuel,updateCar,BASE,setChar,startClean,interact,target:()=>target,S,cam,R,G,player,customers:()=>customers,spawn,startDay,mkChar,mkBurger,mkMeal,mkLeftovers,play,playOnce,animChar,CHARS,esther:()=>esther,seats:()=>seats,TABLES,makeDirty,addSpill,holdMop,openShop,SHOPS,showControls,act,deliver,served,sitDown,startEat,update,setState:s=>state=s,getState:()=>state,ANIM,dirtyCount,setT:v=>tLeft=v,burgerSet:b=>{burgers=b?[b]:[];activeB=0;rebuildStack()},burgersSet:a=>{burgers=a;rebuildStack()},MACH,fry:()=>fry,drk:()=>drk,setReady:(f,d)=>{fry.ready=f;drk.ready=d}};
+window.__CQ={H,dayStats:()=>dayStats,buildHelpers,cam,charCull,THREE_F:THREE.Frustum,NET,netSend,netHostT:()=>{NET.want=true;netSend({t:'host',name:'Lobby Teste',av:CFG.av,G})},showAvatar,showCreate,showMenuX:()=>showMenu(),pauseX:()=>pause(),bDoorX:()=>bDoor,autoDeliver,storeAct,stations,payCart,returnCart,deliverDrive,spawnDrive,dcars:()=>dcars,dSet:a=>{dburgers=a;rebuildD()},buildShell,QX,inBooth,closeShop,drawShop,cartObj,S_WIN,EDIT,toggleEdit,pickF,placeF,rotF,editUpdate,validFurn,autoPlace,newF,addTableSet,buildFurn,findPath,refreshStations,zones,FT,getFZ:()=>[FZ,RX],buy,UP,cars,V,PC,POSTO,enterCar,exitCar,openFuel,updateCar,BASE,setChar,startClean,interact,target:()=>target,S,cam,R,G,player,customers:()=>customers,spawn,startDay,mkChar,mkBurger,mkMeal,mkLeftovers,play,playOnce,animChar,CHARS,esther:()=>esther,seats:()=>seats,TABLES,makeDirty,addSpill,holdMop,openShop,SHOPS,showControls,act,deliver,served,sitDown,startEat,update,setState:s=>state=s,getState:()=>state,ANIM,dirtyCount,setT:v=>tLeft=v,burgerSet:b=>{burgers=b?[b]:[];activeB=0;rebuildStack()},burgersSet:a=>{burgers=a;rebuildStack()},MACH,fry:()=>fry,drk:()=>drk,setReady:(f,d)=>{fry.ready=f;drk.ready=d}};
 if(location.hash.startsWith('#teste')){const sc=document.createElement('script');sc.src='teste_jogo.js';document.body.appendChild(sc)}
 showMenu();loop();
 </script></body></html>

@@ -8,6 +8,12 @@
  if(cena==='menu'){later(300,()=>Q.showMenuX());return}if(cena==='avatar'){later(300,()=>Q.showAvatar());return}if(cena==='criar'){later(300,()=>Q.showCreate());return}
  later(300,()=>{
   Q.startDay();if(cena==='pausa'){later(500,()=>Q.pauseX());return}if(cena==='extra'||cena==='extrapausa'){Q.setT(.2);run(10);if(cena==='extrapausa')later(500,()=>Q.pauseX());return}if(location.hash.includes('online'))Q.netHostT();if(cena==='chapa'){const P=Q.player;const y=parseFloat(location.hash.split('y=')[1]||0);P.pos.set(-1.5,.08,-1.9);P.yaw=P.face=y;P.pitch=-.35;run(10);later(1500,()=>run(3));return}if(cena==='porta'){const P=Q.player;const lg=location.hash.includes('longe');P.pos.set(lg?-3.2:-6.6,.08,lg?-2.6:-3.25);P.yaw=P.face=lg?-Math.PI/2+.25:-Math.PI/2+.5;P.pitch=-.3;run(30);later(1500,()=>{run(5);log('porta ang '+Q.bDoorX().rotation.y.toFixed(2))});return}const P=Q.player;
+  if(cena==='ajudantes'||cena==='agencia'){if(cena==='agencia'){P.pos.set(86,.08,15);P.yaw=P.face=0;P.pitch=-.2;run(10);return}
+   Object.assign(Q.G.lv,{helper:1,hchef:2,hmont:2,hfry:1,hmach:1,hgarcom:2,hclean:1,hdrive:1});Object.assign(Q.G.stock,{pao:60,carne:60,batata:20,massa:8});Q.refreshStations();Q.buildHelpers(true);log('ajudantes '+Object.keys(Q.H).join(','));
+   const sp=Q.seats()[0];if(sp)Q.makeDirty(sp,{burger:true});Q.addSpill(-2,3);
+   let t=0;for(let i=0;i<1600;i++){Q.update(.05);if(i%160===0)Q.spawn()}
+   const ds=Q.dayStats();log('ok='+ds.ok+' perdidos='+ds.lost+' limpos='+ds.clean+' drive='+(ds.drive||0)+' sujos='+Q.dirtyCount()+' estoque pao='+Q.G.stock.pao+' carne='+Q.G.stock.carne);
+   P.pos.set(0,.08,1.6);P.yaw=P.face=Math.PI;P.pitch=-.3;run(4);later(1200,()=>run(2));return}
   if(cena==='mesa'){
    const seats=Q.seats();log('assentos='+seats.length);
    for(let i=0;i<3;i++){Q.spawn();const c=Q.customers()[i];c.order={burger:true,cheese:true,salad:i==1,bacon:i==2,drink:i!=1,fries:i!=0};c.seatRes=seats[[0,1,3][i]];c.seatRes.busy=true;c.state='wait';Q.served(c);c.m.position.copy(c.sitP);c.m.position.y=.08;c.path=[];Q.sitDown(c)}
