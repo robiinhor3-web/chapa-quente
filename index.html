@@ -105,6 +105,7 @@ import {OutputPass} from 'three/addons/postprocessing/OutputPass.js';
 import {ShaderPass} from 'three/addons/postprocessing/ShaderPass.js';
 import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import * as SU from 'three/addons/utils/SkeletonUtils.js';
 const $=id=>document.getElementById(id);
 const V=(x=0,y=0,z=0)=>new THREE.Vector3(x,y,z);
@@ -170,6 +171,7 @@ let GUEST=null;try{GUEST=JSON.parse(sessionStorage.getItem('cqGuest')||'null')}c
 G.stock=Object.assign({pao:12,carne:12,queijo:0,salada:0,bacon:0,batata:0,refri:0,salsicha:0,massa:0,sorvete:0,bolo:0,laranja:0,pastel:0,leite:0,acai:0},G.stock||{});G.fuel=Math.min(FUEL_MAX,G.fuel??FUEL_MAX);
 if(!G.lv)G.lv={};
 if(TOUCH)CFG.q='celular';try{const s=JSON.parse(localStorage.getItem('chapaQuenteCfg')||'null');if(s)Object.assign(CFG,s)}catch(e){}
+const LOWQ=CFG.q==='celular'; // celular: cabelos e árvores com menos polígonos (vale a partir do carregamento)
 const save=()=>{try{if(CUR){localStorage.setItem(lobKey(CUR),JSON.stringify(G));const l=LOB.find(x=>x.id===CUR);if(l){l.day=G.day;localStorage.setItem(LOBK,JSON.stringify(LOB))}}localStorage.setItem('chapaQuenteCfg',JSON.stringify(CFG))}catch(e){}netG()};
 const freshG=()=>({money:0,day:1,lv:{},fuel:FUEL_MAX,stock:{pao:12,carne:12,queijo:0,salada:0,bacon:0,batata:0,refri:0,salsicha:0,massa:0,sorvete:0,bolo:0,laranja:0,pastel:0,leite:0,acai:0}});
 // link de convite: #entrar=CÓDIGO entra direto no lobby online do amigo
@@ -199,13 +201,34 @@ const hemi=new THREE.HemisphereLight(0xdfeaff,0x4a3c2c,.6);S.add(hemi);
 const sun=new THREE.DirectionalLight(0xffffff,3);sun.castShadow=true;
 Object.assign(sun.shadow.camera,{left:-28,right:28,top:28,bottom:-28,near:1,far:200});sun.shadow.bias=-.0003;sun.shadow.normalBias=.02;S.add(sun);S.add(sun.target);
 let composer=null;
+// celular: junta as peças paradas de um grupo numa malha por material (bem menos chamadas de desenho)
+function mergeStatic(root){root.updateMatrixWorld(true);const inv=root.matrixWorld.clone().invert(),by=new Map(),dead=[];
+ root.traverse(o=>{if(!o.isMesh||o.isSkinnedMesh||o.isInstancedMesh||!o.visible||Array.isArray(o.material)||o.morphTargetInfluences)return;
+  let g=o.geometry.index?o.geometry.toNonIndexed():o.geometry.clone();for(const k of Object.keys(g.attributes))if(!['position','normal','uv'].includes(k))g.deleteAttribute(k);
+  if(!g.attributes.normal)g.computeVertexNormals();if(!g.attributes.uv)g.setAttribute('uv',new THREE.BufferAttribute(new Float32Array(g.attributes.position.count*2),2));
+  g.morphAttributes={};g.clearGroups();g.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv,o.matrixWorld));const k=o.material.uuid;if(!by.has(k))by.set(k,{m:o.material,gs:[],sh:false});const e=by.get(k);e.gs.push(g);e.sh=e.sh||o.castShadow;dead.push(o)});
+ if(dead.length<2)return;dead.forEach(o=>o.removeFromParent());
+ for(const e of by.values()){const mg=mergeGeometries(e.gs,false);if(!mg)continue;const m=new THREE.Mesh(mg,e.m);m.castShadow=e.sh;m.receiveShadow=true;root.add(m)}}
+// personagens são desenhados sempre (frustumCulled=false por causa da animação): esconde os que estão fora da câmera ou longe
+let CHL=[],CHT=0;const CFR=new THREE.Frustum(),CSP=new THREE.Sphere(),CPM=new THREE.Matrix4();
+function charCull(){const now=performance.now();if(now-CHT>1000){CHT=now;CHL=[];for(const c of S.children){if(c===esther||!c.isObject3D)continue;const ms=[];let sk=false;c.traverse(o=>{if(o.isSkinnedMesh)sk=true;if(o.isMesh&&!o.frustumCulled)ms.push(o)});if(sk&&ms.length)CHL.push([c,ms])}}
+ cam.updateMatrixWorld();CFR.setFromProjectionMatrix(CPM.multiplyMatrices(cam.projectionMatrix,cam.matrixWorldInverse));const far=CFG.q==='celular'?60:250;
+ for(const [c,ms] of CHL){CSP.center.set(c.position.x,c.position.y+1,c.position.z);CSP.radius=1.8;const on=CSP.center.distanceTo(cam.position)<far&&CFR.intersectsSphere(CSP);if(ms[0].visible!==on)for(const m of ms)m.visible=on}}
+// celular: resolução automática — se o quadro passar de ~38 ms baixa a resolução, se sobrar folga sobe de novo
+const DR={last:0,acc:0,n:0,k:1};const baseRatio=()=>Math.min(devicePixelRatio,1.25)*.8;
+function dynRes(){const now=performance.now(),d=now-DR.last;DR.last=now;if(CFG.q!=='celular'||state!=='play'||d>250)return;DR.acc+=d;DR.n++;if(DR.acc<2000)return;
+ const ms=DR.acc/DR.n,k0=DR.k;DR.acc=DR.n=0;if(ms>38&&DR.k>.5)DR.k=Math.max(.5,DR.k-.1);else if(ms<24&&DR.k<1)DR.k=Math.min(1,DR.k+.05);
+ if(DR.k!==k0)R.setPixelRatio(baseRatio()*DR.k)}
+function lowLights(){const off=CFG.q==='celular';S.traverse(o=>{if(o.isPointLight||o.isSpotLight)o.visible=!off})}setInterval(lowLights,1500);
 // correção de cor final: um pouco mais de contraste/saturação + vinheta suave
 const GRADE={uniforms:{tDiffuse:{value:null}},vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
  fragmentShader:'uniform sampler2D tDiffuse;varying vec2 vUv;void main(){vec4 c=texture2D(tDiffuse,vUv);float l=dot(c.rgb,vec3(.299,.587,.114));c.rgb=mix(vec3(l),c.rgb,1.12);c.rgb=(c.rgb-.5)*1.05+.5;vec2 d=vUv-.5;c.rgb*=1.-dot(d,d)*.55;gl_FragColor=c;}'};
 function applyQuality(){const q=CFG.q;
- R.setPixelRatio(q==='ultra'?Math.min(devicePixelRatio,2):q==='alta'?Math.min(devicePixelRatio,1.5):q==='celular'?Math.min(devicePixelRatio,1.25)*.8:1);R.setSize(innerWidth,innerHeight);
+ R.setPixelRatio(q==='ultra'?Math.min(devicePixelRatio,2):q==='alta'?Math.min(devicePixelRatio,1.5):q==='celular'?baseRatio()*DR.k:1);R.setSize(innerWidth,innerHeight);
  const ms=q==='ultra'?4096:q==='alta'?2048:q==='celular'?1024:1024;if(sun.shadow.mapSize.x!==ms){sun.shadow.mapSize.set(ms,ms);if(sun.shadow.map){sun.shadow.map.dispose();sun.shadow.map=null}}
  R.shadowMap.type=q==='media'||q==='celular'?THREE.PCFShadowMap:THREE.PCFSoftShadowMap;
+ // celular: sem sombras, sem luzes pontuais (cada uma pesa em todo pixel) e vista mais curta com neblina
+ R.shadowMap.enabled=q!=='celular';lowLights();S.fog.near=q==='celular'?35:90;S.fog.far=q==='celular'?150:420;cam.far=q==='celular'?170:2000;cam.updateProjectionMatrix();
  if(q!=='media'&&q!=='celular'){const rt=new THREE.WebGLRenderTarget(innerWidth,innerHeight,{samples:4,type:THREE.HalfFloatType});
   composer=new EffectComposer(R,rt);composer.addPass(new RenderPass(S,cam));if(q==='ultra'||q==='alta'){const k=q==='ultra'?1:.5;const ao=new GTAOPass(S,cam,innerWidth*k,innerHeight*k);ao.updateGtaoMaterial({radius:.5,distanceFallOff:1,thickness:1});ao.blendIntensity=.9;composer.addPass(ao)}composer.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight),.22,.4,2.2));composer.addPass(new OutputPass());composer.addPass(new ShaderPass(GRADE));
   composer.setPixelRatio(R.getPixelRatio());composer.setSize(innerWidth,innerHeight)}else composer=null}
@@ -218,7 +241,7 @@ const envScene=new THREE.Scene();const sky2=new Sky();sky2.material=sky.material
 const pmrem=new THREE.PMREMGenerator(R);let envRT=null;const sunDir=V();let night=false;
 function setSun(elev,az,env){sunDir.setFromSphericalCoords(1,THREE.MathUtils.degToRad(90-elev),THREE.MathUtils.degToRad(az));su.sunPosition.value.copy(sunDir);
  const k=THREE.MathUtils.clamp(elev/14,0,1);sun.intensity=k*3.2;sun.color.setHSL(.085,.75,THREE.MathUtils.clamp(.52+elev/110,.52,.96));
- hemi.intensity=.12+.5*THREE.MathUtils.clamp(elev/30,0,1);
+ hemi.intensity=.12+.5*THREE.MathUtils.clamp(elev/30,0,1)+(CFG.q==='celular'&&elev<9?.35:0);
  S.fog.color.setHSL(.58,.3,THREE.MathUtils.clamp(.18+elev/80,.12,.8));
  night=elev<9;nightLights(night);
  if(env){if(envRT)envRT.dispose();envRT=pmrem.fromScene(envScene);S.environment=envRT.texture}}
@@ -742,8 +765,8 @@ function scalpGeo(base,body,off){const ck='scalp'+off;if(base.clothCache[ck])ret
 function scalpHair(root,bones,base,body,color,kind){const hr=base.skull.R,hm=new THREE.MeshStandardMaterial({color,roughness:.5});
  const sm=new THREE.SkinnedMesh(scalpGeo(base,body,+(hr*.05).toFixed(4)),hm);sm.bind(body.skeleton,body.bindMatrix);sm.frustumCulled=false;sm.castShadow=true;body.parent.add(sm);
  const pos=body.geometry.attributes.position,nor=body.geometry.attributes.normal,ok=base.scalp.ok,ids=[];for(let i=0;i<ok.length;i++)if(ok[i])ids.push(i);
- const af=kind==='afro',n=af?1500:800,lift=af?[.08,.8]:[.04,.22],size=af?[.17,.3]:[.15,.25];
- const sp=new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1,1),hm,n),tor=new THREE.InstancedMesh(new THREE.TorusGeometry(1,.38,6,12),hm,n);const m4=new THREE.Matrix4(),q=new THREE.Quaternion(),e=new THREE.Euler(),sc=V();
+ const af=kind==='afro',n=af?(LOWQ?450:1500):(LOWQ?260:800),lift=af?[.08,.8]:[.04,.22],size=(af?[.17,.3]:[.15,.25]).map(v=>LOWQ?v*1.35:v);
+ const sp=new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1,LOWQ?0:1),hm,n),tor=new THREE.InstancedMesh(LOWQ?new THREE.TorusGeometry(1,.38,4,7):new THREE.TorusGeometry(1,.38,6,12),hm,n);const m4=new THREE.Matrix4(),q=new THREE.Quaternion(),e=new THREE.Euler(),sc=V();
  for(let k=0;k<n;k++){const i=ids[Math.random()*ids.length|0],nn=V(nor.getX(i),nor.getY(i),nor.getZ(i)).normalize();const front=nn.z>.4&&nn.y<.5;const lf=hr*(lift[0]+Math.random()*(lift[1]-lift[0])*(af&&front?.25:1));
   const p=V(pos.getX(i),pos.getY(i),pos.getZ(i)).addScaledVector(nn,lf),s=hr*(size[0]+Math.random()*(size[1]-size[0]));m4.compose(p,q.identity(),sc.set(s,s*1.1,s));sp.setMatrixAt(k,m4);
   e.set(Math.random()*6,Math.random()*6,Math.random()*6);q.setFromEuler(e);const ts=s*1.05;m4.compose(p.clone().addScaledVector(nn,s*.4),q,sc.set(ts,ts,ts));tor.setMatrixAt(k,m4)}
@@ -994,7 +1017,7 @@ const cartObj=mkCart();cartObj.visible=false;S.add(cartObj);
  for(let i=0;i<160;i++){const x=(rand()-.5)*360,z=36+rand()*140;if(ok(x,z))T.push([x,z,.8+rand()*.7])}
  for(let x=-140;x<=140;x+=12){if(Math.abs(x)<12||Math.abs(x-34)<8)continue;T.push([x,9.1,.75]);T.push([x+6,17.2,.75])}
  const trunk=new THREE.InstancedMesh(new THREE.CylinderGeometry(.14,.22,2.6,8),mat(0x5a4130,{roughness:.95}),T.length);
- const lg=new THREE.IcosahedronGeometry(1.5,2);const p=lg.attributes.position;for(let i=0;i<p.count;i++){const v=V(p.getX(i),p.getY(i),p.getZ(i));v.multiplyScalar(1+(Math.sin(v.x*3.1)+Math.cos(v.y*2.7+v.z*1.9))*.09);p.setXYZ(i,v.x,v.y,v.z)}lg.computeVertexNormals();
+ const lg=new THREE.IcosahedronGeometry(1.5,LOWQ?1:2);const p=lg.attributes.position;for(let i=0;i<p.count;i++){const v=V(p.getX(i),p.getY(i),p.getZ(i));v.multiplyScalar(1+(Math.sin(v.x*3.1)+Math.cos(v.y*2.7+v.z*1.9))*.09);p.setXYZ(i,v.x,v.y,v.z)}lg.computeVertexNormals();
  const leaf=new THREE.InstancedMesh(lg,new THREE.MeshStandardMaterial({roughness:.85}),T.length*3);
  const m4=new THREE.Matrix4(),q=new THREE.Quaternion(),c=new THREE.Color();let k=0;
  T.forEach(([x,z,s],i)=>{m4.compose(V(x,1.3*s,z),q.identity(),V(s,s,s));trunk.setMatrixAt(i,m4);
@@ -1060,7 +1083,7 @@ function mkToonCar(col,o={}){const g=new THREE.Group(),body=new THREE.Group();g.
   const r=cy(.235,.24,rim,0,0,0,24);r.rotation.x=Math.PI/2;spin.add(r);const hub=cy(.06,.26,chrome,0,0,0,14);hub.rotation.x=Math.PI/2;spin.add(hub);
   for(let k=0;k<5;k++){const a=k/5*Math.PI*2;const sp=box3(.05,.2,.03,rim,Math.cos(a)*.11,Math.sin(a)*.11,sd*.125);sp.rotation.z=a-Math.PI/2;spin.add(sp)}
   g.add(piv);wheels.push({spin});if(x>0)front.push(piv)}
- g.userData={wheels,front,body};S.add(g);return g}
+ g.userData={wheels,front,body};if(LOWQ){mergeStatic(body);wheels.forEach(w=>mergeStatic(w.spin))}S.add(g);return g}
 const CARCOLS=[0x2f80ed,0xf2c94c,0x27ae60,0x9b51e0,0xeb5757,0xf2994a,0x56ccf2,0xbdbdbd,0x6fcf97,0xbb6bd9];
 CARCOLS.forEach((c,i)=>{const g=mkToonCar(c);const dir=i%2?1:-1;g.position.set(-220+i*46,0,dir>0?11.4:14.6);g.rotation.y=dir>0?0:Math.PI;cars.push({g,dir,v:8+rand()*5,s:8})});
 // ---- carro do jogador + estacionamento ----
@@ -1887,14 +1910,14 @@ function loop(){requestAnimationFrame(loop);if(MAPA_TESTE){G.money=999999;G.fuel
  const t=performance.now()/1000;esther.visible=true;esther.position.set(4.5,.08,8);if(state==='menu'){esther.rotation.y=Math.sin(t*.6)*.35;cam.position.set(4.1+Math.sin(t*.15)*.4,1.25,10.8);cam.lookAt(3.35,.95,8)}else{const u=t*.05;cam.position.set(Math.sin(u)*16,6,10+Math.cos(u)*12);cam.lookAt(0,1.5,0);esther.rotation.y=Math.sin(u*3)*.6};animChar(esther,dt,0)}
  else if(state==='shop'){animChar(esther,dt,0);for(const k of shopKeepers)animChar(k,dt,0)}
  {const nl=$('nickLbl');if(state==='play'&&!player.car&&CFG.cam!=='1p'&&esther.visible){if(nl.textContent!==CFG.av.nick)nl.textContent=CFG.av.nick;nl.style.display=toScreen(V(esther.position.x,esther.position.y+esther.userData.h+.32,esther.position.z),nl)?'block':'none'}else nl.style.display='none'}
- netUpdate(dt);touchUI();composer?composer.render():R.render(S,cam)}
+ netUpdate(dt);touchUI();charCull();composer?composer.render():R.render(S,cam);dynRes()}
 applyQuality();refreshStations();{const s=sunFor(DAY_LEN*.6);setSun(s.e,s.a,true)}
 $('loading').remove();
 if(location.protocol.startsWith('http')&&'serviceWorker' in navigator&&!location.hash.startsWith('#teste'))navigator.serviceWorker.register('sw.js').catch(()=>{});
 if(ENT_ERR)setTimeout(()=>confirmBox('🌐 Não deu pra entrar',esc(ENT_ERR),'OK',showMenu,showMenu),60);
 {let au=0;try{au=sessionStorage.getItem('cqAuto');sessionStorage.removeItem('cqAuto')}catch(e){}if(au&&(CUR||GUEST)&&!location.hash.startsWith('#teste'))setTimeout(()=>startDay(),50)}
 // modo de teste (capturas automáticas): index.html#teste=...
-window.__CQ={NET,netSend,netHostT:()=>{NET.want=true;netSend({t:'host',name:'Lobby Teste',av:CFG.av,G})},showAvatar,showCreate,showMenuX:()=>showMenu(),pauseX:()=>pause(),bDoorX:()=>bDoor,autoDeliver,storeAct,stations,payCart,returnCart,deliverDrive,spawnDrive,dcars:()=>dcars,dSet:a=>{dburgers=a;rebuildD()},buildShell,QX,inBooth,closeShop,drawShop,cartObj,S_WIN,EDIT,toggleEdit,pickF,placeF,rotF,editUpdate,validFurn,autoPlace,newF,addTableSet,buildFurn,findPath,refreshStations,zones,FT,getFZ:()=>[FZ,RX],buy,UP,cars,V,PC,POSTO,enterCar,exitCar,openFuel,updateCar,BASE,setChar,startClean,interact,target:()=>target,S,cam,R,G,player,customers:()=>customers,spawn,startDay,mkChar,mkBurger,mkMeal,mkLeftovers,play,playOnce,animChar,CHARS,esther:()=>esther,seats:()=>seats,TABLES,makeDirty,addSpill,holdMop,openShop,SHOPS,showControls,act,deliver,served,sitDown,startEat,update,setState:s=>state=s,getState:()=>state,ANIM,dirtyCount,setT:v=>tLeft=v,burgerSet:b=>{burgers=b?[b]:[];activeB=0;rebuildStack()},burgersSet:a=>{burgers=a;rebuildStack()},MACH,fry:()=>fry,drk:()=>drk,setReady:(f,d)=>{fry.ready=f;drk.ready=d}};
+window.__CQ={cam,charCull,THREE_F:THREE.Frustum,NET,netSend,netHostT:()=>{NET.want=true;netSend({t:'host',name:'Lobby Teste',av:CFG.av,G})},showAvatar,showCreate,showMenuX:()=>showMenu(),pauseX:()=>pause(),bDoorX:()=>bDoor,autoDeliver,storeAct,stations,payCart,returnCart,deliverDrive,spawnDrive,dcars:()=>dcars,dSet:a=>{dburgers=a;rebuildD()},buildShell,QX,inBooth,closeShop,drawShop,cartObj,S_WIN,EDIT,toggleEdit,pickF,placeF,rotF,editUpdate,validFurn,autoPlace,newF,addTableSet,buildFurn,findPath,refreshStations,zones,FT,getFZ:()=>[FZ,RX],buy,UP,cars,V,PC,POSTO,enterCar,exitCar,openFuel,updateCar,BASE,setChar,startClean,interact,target:()=>target,S,cam,R,G,player,customers:()=>customers,spawn,startDay,mkChar,mkBurger,mkMeal,mkLeftovers,play,playOnce,animChar,CHARS,esther:()=>esther,seats:()=>seats,TABLES,makeDirty,addSpill,holdMop,openShop,SHOPS,showControls,act,deliver,served,sitDown,startEat,update,setState:s=>state=s,getState:()=>state,ANIM,dirtyCount,setT:v=>tLeft=v,burgerSet:b=>{burgers=b?[b]:[];activeB=0;rebuildStack()},burgersSet:a=>{burgers=a;rebuildStack()},MACH,fry:()=>fry,drk:()=>drk,setReady:(f,d)=>{fry.ready=f;drk.ready=d}};
 if(location.hash.startsWith('#teste')){const sc=document.createElement('script');sc.src='teste_jogo.js';document.body.appendChild(sc)}
 showMenu();loop();
 </script></body></html>
