@@ -164,7 +164,7 @@ const SHOPS=[
  {id:'tintas',int:1,nome:'Tintas & Pisos Cor Viva',e:'🎨',cor:0x2a9d8f,x:-52,z:-2,rot:0,paint:1,itens:[]},
 ];
 // MAPA DE TESTE: true = dinheiro e gasolina infinitos (só pra testar). Jogo oficial = false.
-const MAPA_TESTE=false;
+let MAPA_TESTE=false; // ligado só no lobby '🧪 Mapa de teste' (botão no menu)
 // celular/tablet: controles de toque + qualidade leve (#toque no endereço força pra testar no PC)
 const TOUCH=/[?#&]toque/.test(location.href)||(matchMedia('(pointer: coarse)').matches&&navigator.maxTouchPoints>0);if(TOUCH)document.body.classList.add('touch');
 const DAY_LEN=420,PATIENCE=120,EAT_T=30,FUEL_MAX=25;
@@ -176,6 +176,7 @@ try{if(!LOB.length){const old=localStorage.getItem('chapaQuente2');if(old){LOB=[
 let CUR=null;try{CUR=localStorage.getItem(CURK)}catch(e){}if(!LOB.find(l=>l.id===CUR))CUR=null;
 try{const s=CUR&&JSON.parse(localStorage.getItem(lobKey(CUR))||'null');if(s)G=s}catch(e){}
 let GUEST=null;try{GUEST=JSON.parse(sessionStorage.getItem('cqGuest')||'null')}catch(e){}if(GUEST&&GUEST.G){G=GUEST.G;CUR=null}else GUEST=null;
+MAPA_TESTE=!GUEST&&!!(LOB.find(l=>l.id===CUR)||{}).teste;
 G.stock=Object.assign({pao:12,carne:12,queijo:0,salada:0,bacon:0,batata:0,refri:0,salsicha:0,massa:0,sorvete:0,bolo:0,laranja:0,pastel:0,leite:0,acai:0},G.stock||{});G.fuel=Math.min(FUEL_MAX,G.fuel??FUEL_MAX);
 if(!G.lv)G.lv={};
 if(TOUCH)CFG.q='celular';try{const s=JSON.parse(localStorage.getItem('chapaQuenteCfg')||'null');if(s)Object.assign(CFG,s)}catch(e){}
@@ -1850,7 +1851,7 @@ function menuFrame(html,w=600){state='menu';ovReset();blu();const o=$('ov');o.st
 function showMenu(){const fd=d=>new Date(d).toLocaleDateString('pt-BR');
  const list=LOB.length?LOB.map(l=>`<div class="shopitem"><div><b>🌐 ${esc(l.nome)}${l.id===CUR?' <small style="color:#2a7fb5">(aberto)</small>':''}</b><span>Dia ${l.day||1} • criado em ${fd(l.t)}</span></div><div style="flex:none"><button class="btn" data-ent="${l.id}">▶ Entrar</button><button class="btn sec" data-del="${l.id}">🗑️</button></div></div>`).join(''):'<p class="how">Nenhum lobby ainda. Crie o primeiro pra começar a jogar! 👇</p>';
  menuFrame({k:'menu',h:`<h1>🍔 Chapa Quente</h1><p class="sub">${MAPA_TESTE?'🧪 Mapa de teste • 💰 dinheiro e ⛽ gasolina infinitos':'Sua lanchonete no bairro'}</p>
- <div class="row"><button class="btn" data-main=1 id="criar">➕ Criar lobby</button><button class="btn" id="online">🌐 Entrar em lobby online</button><button class="btn sec" id="avat">🧍 Avatar e nickname</button>${/Electron/.test(navigator.userAgent)?'<button class="btn sec" id="sair">🚪 Sair do jogo</button>':''}</div>
+ <div class="row"><button class="btn" data-main=1 id="criar">➕ Criar lobby</button><button class="btn" id="online">🌐 Entrar em lobby online</button><button class="btn" id="mteste" style="background:#7a2fd0">🧪 Mapa de teste</button><button class="btn sec" id="avat">🧍 Avatar e nickname</button>${/Electron/.test(navigator.userAgent)?'<button class="btn sec" id="sair">🚪 Sair do jogo</button>':''}</div>
  <h3 style="margin:12px 0 4px">🌐 Seus lobbies</h3>${list}${lanHTML('')?lanHTML('').replace('Depois toque em 🌐 Entrar em lobby online.','Entre no seu lobby aqui no PC; no celular toque em 🌐 Entrar em lobby online.'):''}
  <div class="tut"><b>Como jogar (rapidinho):</b><br>
  <b>1.</b> Pegue o 🍞 pão na tábua (${TOUCH?'toque em <b>👆 Usar</b>':'aperte <b>E</b> ou <b>A</b> no controle'}).<br>
@@ -1859,7 +1860,7 @@ function showMenu(){const fd=d=>new Date(d).toLocaleDateString('pt-BR');
  <b>4.</b> Limpe as mesas sujas com o 🧽 esfregão e compre ingredientes nas lojinhas da rua.<br>
  ${TOUCH?'Andar: <b>analógico</b> da esquerda • Olhar: arraste a tela • <b>👆 Usar</b> e <b>🛎️ Entregar</b> na direita • Pausa: <b>⏸</b>':'Andar: <b>WASD</b> ou analógico • Pausa: <b>Esc</b> ou <b>Start</b>'}</div>
  ${settingsHTML(false)}`});
- const o=$('ov');$('criar').onclick=showCreate;$('online').onclick=showOnline;if($('sair'))$('sair').onclick=()=>{save();window.close()};$('avat').onclick=showAvatar;bindSettings(showMenu);
+ const o=$('ov');$('criar').onclick=showCreate;$('mteste').onclick=()=>{let l=LOB.find(x=>x.teste);if(!l){l={id:'teste',nome:'🧪 Mapa de teste',t:Date.now(),day:8,teste:1};LOB.push(l);const g=freshG();g.day=8;try{localStorage.setItem(LOBK,JSON.stringify(LOB));localStorage.setItem(lobKey(l.id),JSON.stringify(g))}catch(e){}}enterLobby(l.id)};$('online').onclick=showOnline;if($('sair'))$('sair').onclick=()=>{save();window.close()};$('avat').onclick=showAvatar;bindSettings(showMenu);
  o.querySelectorAll('[data-ent]').forEach(b=>b.onclick=()=>enterLobby(b.dataset.ent));
  o.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{const l=LOB.find(x=>x.id===b.dataset.del);confirmBox('🗑️ Apagar o lobby?',`O lobby <b>${esc(l.nome)}</b> e todo o progresso dele serão apagados. Não dá pra desfazer.`,'Sim, apagar',()=>{try{localStorage.removeItem(lobKey(l.id))}catch(e){}LOB=LOB.filter(x=>x!==l);if(CUR===l.id){CUR=null;try{localStorage.removeItem(CURK)}catch(e){}}try{localStorage.setItem(LOBK,JSON.stringify(LOB))}catch(e){}showMenu()},showMenu)});
  menuBtns().forEach((x,i)=>x.classList.toggle('foc',i===menuIdx))}
