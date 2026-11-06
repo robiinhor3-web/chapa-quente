@@ -107,6 +107,9 @@ import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js'
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import * as SU from 'three/addons/utils/SkeletonUtils.js';
+// memória da placa de vídeo: anota cada geometria/textura enviada pra GPU (pra liberar as que saíram da cena)
+const GPU_G=new Set(),GPU_T=new Set();let GPU_BOOT_G=Infinity,GPU_BOOT_T=Infinity;
+{const ae=THREE.EventDispatcher.prototype.addEventListener;THREE.EventDispatcher.prototype.addEventListener=function(t,f){if(t==='dispose'){if(this.isBufferGeometry)GPU_G.add(this);else if(this.isTexture)GPU_T.add(this)}return ae.call(this,t,f)}}
 const $=id=>document.getElementById(id);
 const V=(x=0,y=0,z=0)=>new THREE.Vector3(x,y,z);
 
@@ -222,25 +225,39 @@ function mergeStatic(root){root.updateMatrixWorld(true);const inv=root.matrixWor
 let CHL=[],CHT=0;const CFR=new THREE.Frustum(),CSP=new THREE.Sphere(),CPM=new THREE.Matrix4();
 function charCull(){const now=performance.now();if(now-CHT>1000){CHT=now;CHL=[];for(const c of S.children){if(c===esther||!c.isObject3D)continue;const ms=[];let sk=false;c.traverse(o=>{if(o.isSkinnedMesh)sk=true;if(o.isMesh&&!o.frustumCulled)ms.push(o)});if(sk&&ms.length)CHL.push([c,ms])}}
  cam.updateMatrixWorld();CFR.setFromProjectionMatrix(CPM.multiplyMatrices(cam.projectionMatrix,cam.matrixWorldInverse));const far=CFG.q==='celular'?60:250;
- for(const [c,ms] of CHL){CSP.center.set(c.position.x,c.position.y+1,c.position.z);CSP.radius=1.8;const on=CSP.center.distanceTo(cam.position)<far&&CFR.intersectsSphere(CSP);if(ms[0].visible!==on)for(const m of ms)m.visible=on}}
+ for(const [c,ms] of CHL){CSP.center.set(c.position.x,c.position.y+1,c.position.z);CSP.radius=1.8;const on=CSP.center.distanceTo(cam.position)<far&&CFR.intersectsSphere(CSP);if(ms[0].visible!==on)for(const m of ms)m.visible=on;c.matrixWorldAutoUpdate=on}}
 // celular: resolução automática — se o quadro passar de ~38 ms baixa a resolução, se sobrar folga sobe de novo
-const DR={last:0,acc:0,n:0,k:1};const baseRatio=()=>Math.min(devicePixelRatio,1.25)*.8;
+const DR={last:0,acc:0,n:0,k:1};
+// PC: modo leve automático — se o jogo ficar pesado (lanchonete cheia, tudo comprado) desliga primeiro o sombreamento extra (GTAO),
+// depois atualiza a sombra do sol a cada 2 quadros e por último baixa um pouco a resolução; volta sozinho quando sobra folga
+let AO=null;const PG={last:0,acc:0,n:0,lv:0,f:0,ok:0};R.shadowMap.autoUpdate=false;
+function perfGov(){const now=performance.now(),d=now-PG.last;PG.last=now;PG.f++;
+ R.shadowMap.needsUpdate=PG.lv<2||PG.f%2===0||state!=='play';// a sombra é desenhada 1 vez por quadro (antes eram 2 com o GTAO)
+ if(CFG.q==='celular'||state!=='play'||d>250)return;PG.acc+=d;PG.n++;if(PG.acc<2500)return;const ms=PG.acc/PG.n;PG.acc=PG.n=0;
+ if(ms>30&&PG.lv<3){PG.lv++;PG.ok=0;applyPG()}else if(ms<17&&PG.lv>0){if(++PG.ok>=3){PG.lv--;PG.ok=0;applyPG()}}else PG.ok=0}
+function applyPG(){if(AO)AO.enabled=PG.lv<1;if(CFG.q==='celular')return;const q=CFG.q,full=q==='ultra'?Math.min(devicePixelRatio,2):q==='alta'?Math.min(devicePixelRatio,1.5):1,pr=PG.lv>=3?Math.max(.75,full*.75):full;
+ if(R.getPixelRatio()!==pr){R.setPixelRatio(pr);composer&&composer.setPixelRatio(pr)}}const baseRatio=()=>Math.min(devicePixelRatio,1.25)*.8;
 function dynRes(){const now=performance.now(),d=now-DR.last;DR.last=now;if(CFG.q!=='celular'||state!=='play'||d>250)return;DR.acc+=d;DR.n++;if(DR.acc<2000)return;
  const ms=DR.acc/DR.n,k0=DR.k;DR.acc=DR.n=0;if(ms>38&&DR.k>.5)DR.k=Math.max(.5,DR.k-.1);else if(ms<24&&DR.k<1)DR.k=Math.min(1,DR.k+.05);
  if(DR.k!==k0)R.setPixelRatio(baseRatio()*DR.k)}
+// libera da GPU o que foi criado durante o jogo e já saiu da cena (clientes que foram embora, bandejas, tickets, sujeira...)
+let GPU_SW=0;function sweepGPU(){const now=performance.now();if(now-GPU_SW<4000||state!=='play')return;GPU_SW=now;const ug=new Set(),ut=new Set();
+ S.traverse(o=>{if(o.geometry)ug.add(o.geometry);const m=o.material;if(!m)return;if(o.isMesh&&!Array.isArray(m)){const sg=(o.isSkinnedMesh?1:0)+(o.isInstancedMesh?2:0);const u=m.userData;if(u.sg===undefined)u.sg=sg;else if(u.sg!==sg){u.alt=u.alt||{};if(!u.alt[sg]){const c2=m.clone();c2.userData={sg};u.alt[sg]=c2}o.material=u.alt[sg]}}for(const mm of Array.isArray(m)?m:[m])for(const k in mm){const v=mm[k];if(v&&v.isTexture)ut.add(v)}});
+ for(const g of GPU_G)if(!ug.has(g)&&g.id>GPU_BOOT_G&&!g.userData.keep){GPU_G.delete(g);g.dispose()}
+ for(const t of GPU_T)if(!ut.has(t)&&t.id>GPU_BOOT_T&&!t.userData.keep){GPU_T.delete(t);t.dispose()}}
 function lowLights(){const off=CFG.q==='celular';S.traverse(o=>{if(o.isPointLight||o.isSpotLight)o.visible=!off})}setInterval(lowLights,1500);
 // correção de cor final: um pouco mais de contraste/saturação + vinheta suave
 const GRADE={uniforms:{tDiffuse:{value:null}},vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
  fragmentShader:'uniform sampler2D tDiffuse;varying vec2 vUv;void main(){vec4 c=texture2D(tDiffuse,vUv);float l=dot(c.rgb,vec3(.299,.587,.114));c.rgb=mix(vec3(l),c.rgb,1.12);c.rgb=(c.rgb-.5)*1.05+.5;vec2 d=vUv-.5;c.rgb*=1.-dot(d,d)*.55;gl_FragColor=c;}'};
-function applyQuality(){const q=CFG.q;
+function applyQuality(){const q=CFG.q;AO=null;
  R.setPixelRatio(q==='ultra'?Math.min(devicePixelRatio,2):q==='alta'?Math.min(devicePixelRatio,1.5):q==='celular'?baseRatio()*DR.k:1);R.setSize(innerWidth,innerHeight);
  const ms=q==='ultra'?4096:q==='alta'?2048:q==='celular'?1024:1024;if(sun.shadow.mapSize.x!==ms){sun.shadow.mapSize.set(ms,ms);if(sun.shadow.map){sun.shadow.map.dispose();sun.shadow.map=null}}
  R.shadowMap.type=q==='media'||q==='celular'?THREE.PCFShadowMap:THREE.PCFSoftShadowMap;
  // celular: sem sombras, sem luzes pontuais (cada uma pesa em todo pixel) e vista mais curta com neblina
  R.shadowMap.enabled=q!=='celular';lowLights();S.fog.near=q==='celular'?35:90;S.fog.far=q==='celular'?150:420;cam.far=q==='celular'?170:2000;cam.updateProjectionMatrix();
  if(q!=='media'&&q!=='celular'){const rt=new THREE.WebGLRenderTarget(innerWidth,innerHeight,{samples:4,type:THREE.HalfFloatType});
-  composer=new EffectComposer(R,rt);composer.addPass(new RenderPass(S,cam));if(q==='ultra'||q==='alta'){const k=q==='ultra'?1:.5;const ao=new GTAOPass(S,cam,innerWidth*k,innerHeight*k);ao.updateGtaoMaterial({radius:.5,distanceFallOff:1,thickness:1});ao.blendIntensity=.9;composer.addPass(ao)}composer.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight),.22,.4,2.2));composer.addPass(new OutputPass());composer.addPass(new ShaderPass(GRADE));
-  composer.setPixelRatio(R.getPixelRatio());composer.setSize(innerWidth,innerHeight)}else composer=null}
+  composer=new EffectComposer(R,rt);composer.addPass(new RenderPass(S,cam));if(q==='ultra'||q==='alta'){const k=q==='ultra'?1:.5;const ao=new GTAOPass(S,cam,innerWidth*k,innerHeight*k);AO=ao;ao.enabled=PG.lv<1;ao.updateGtaoMaterial({radius:.5,distanceFallOff:1,thickness:1});ao.blendIntensity=.9;composer.addPass(ao)}composer.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight),.22,.4,2.2));composer.addPass(new OutputPass());composer.addPass(new ShaderPass(GRADE));
+  composer.setPixelRatio(R.getPixelRatio());composer.setSize(innerWidth,innerHeight)}else composer=null;if(PG.lv)applyPG()}
 addEventListener('resize',()=>{cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix();R.setSize(innerWidth,innerHeight);composer&&composer.setSize(innerWidth,innerHeight)});
 
 // céu
@@ -514,7 +531,7 @@ function fgeo(r){if(FG[r])return FG[r];const g={};const rnd2=()=>Math.random()-.
  g.seed=new THREE.CapsuleGeometry(r*.018,r*.03,2,6);g.seed.rotateZ(Math.PI/2);
  g.seeds=[];for(let i=0;i<26;i++){const a=.35+Math.random()*1.0,ph=Math.random()*Math.PI*2;const p=V(Math.cos(a)*r*1.01*Math.cos(ph),r*.03+Math.sin(a)*r*.6,Math.cos(a)*r*1.01*Math.sin(ph));
   const n=V(p.x/(r*r),(p.y-r*.03)/(r*r*.36),p.z/(r*r)).normalize();const q=new THREE.Quaternion().setFromUnitVectors(V(0,1,0),n).multiply(new THREE.Quaternion().setFromAxisAngle(V(0,1,0),Math.random()*6));g.seeds.push(new THREE.Matrix4().compose(p,q,V(1,1,1)))}
- return FG[r]=g}
+ for(const k in g)if(g[k]&&g[k].isBufferGeometry)g[k].userData.keep=1;return FG[r]=g}
 function fm(geo,m,y=0){const o=new THREE.Mesh(geo,m);o.position.y=y;o.castShadow=true;o.receiveShadow=true;return o}
 function mkBurger(o,r=.13,pattyMat=FM.patty){const g=fgeo(r),B=new THREE.Group();let y=0;
  B.add(fm(g.bunB,FM.bun));const cut=fm(new THREE.CircleGeometry(r*.96,32).rotateX(-Math.PI/2),FM.bunIn,r*.262);B.add(cut);y=r*.26;
@@ -767,9 +784,9 @@ function clothGeo(base,body,sp){const ck=[sp.sleeve,sp.shorts?1:0].join();if(bas
   ng.setAttribute('position',p2);ng.setAttribute('normal',new THREE.Float32BufferAttribute(pos.count*3,3));ng.setIndex(ids);ng.computeVertexNormals();return ng};
  const keep=[];for(let t=0;t<idx.length;t+=3){if(reg[idx[t]]!=='skin'&&reg[idx[t+1]]!=='skin'&&reg[idx[t+2]]!=='skin')continue;keep.push(idx[t],idx[t+1],idx[t+2])}
  const bodyG=new THREE.BufferGeometry();for(const k in g.attributes)bodyG.setAttribute(k,g.attributes[k]);bodyG.setIndex(keep);
- return base.clothCache[ck]={body:bodyG,pants:shell('pants',.013,null,3),shirt:shell('shirt',.022,(i,o)=>pos.getY(i)<base.waist+.05?o+.012:o,6)}}
+ const cc0=base.clothCache[ck]={body:bodyG,pants:shell('pants',.013,null,3),shirt:shell('shirt',.022,(i,o)=>pos.getY(i)<base.waist+.05?o+.012:o,6)};for(const k in cc0)if(cc0[k]&&cc0[k].isBufferGeometry)cc0[k].userData.keep=1;return cc0}
 function scalpGeo(base,body,off){const ck='scalp'+off;if(base.clothCache[ck])return base.clothCache[ck];const g=body.geometry,pos=g.attributes.position,nor=g.attributes.normal;const ng=new THREE.BufferGeometry();for(const k in g.attributes)ng.setAttribute(k,g.attributes[k]);
- const p2=new THREE.Float32BufferAttribute(pos.count*3,3);for(let i=0;i<pos.count;i++)p2.setXYZ(i,pos.getX(i)+nor.getX(i)*off,pos.getY(i)+nor.getY(i)*off,pos.getZ(i)+nor.getZ(i)*off);ng.setAttribute('position',p2);ng.setAttribute('normal',new THREE.Float32BufferAttribute(pos.count*3,3));ng.setIndex(base.scalp.tri);ng.computeVertexNormals();return base.clothCache[ck]=ng}
+ const p2=new THREE.Float32BufferAttribute(pos.count*3,3);for(let i=0;i<pos.count;i++)p2.setXYZ(i,pos.getX(i)+nor.getX(i)*off,pos.getY(i)+nor.getY(i)*off,pos.getZ(i)+nor.getZ(i)*off);ng.setAttribute('position',p2);ng.setAttribute('normal',new THREE.Float32BufferAttribute(pos.count*3,3));ng.setIndex(base.scalp.tri);ng.computeVertexNormals();ng.userData.keep=1;return base.clothCache[ck]=ng}
 // cabelo cacheado/black colado na cabeça: casca no formato do couro cabeludo + cachos nascendo dele
 function scalpHair(root,bones,base,body,color,kind){const hr=base.skull.R,hm=new THREE.MeshStandardMaterial({color,roughness:.5});
  const sm=new THREE.SkinnedMesh(scalpGeo(base,body,+(hr*.05).toFixed(4)),hm);sm.bind(body.skeleton,body.bindMatrix);sm.frustumCulled=false;sm.castShadow=true;body.parent.add(sm);
@@ -917,9 +934,9 @@ function mkShop(sh,i){const w=10,d=8,h=4.6,g=new THREE.Group();const f=d/2;
  g.add(mesh(new THREE.PlaneGeometry(w-.8,1.4),new THREE.MeshStandardMaterial({map:shopSign(sh),roughness:.5,emissive:0xffffff,emissiveMap:shopSign(sh),emissiveIntensity:.15}),0,h-.55,f+.02,false));
  // balcão externo com produtos
  const wood=tmat(TX.wood,2,1,{roughness:.55});g.add(bx(3.4,.95,.8,wood,-1.1,.475,f+1.0,.03));g.add(bx(3.6,.06,.95,mat(0xe8e2d6,{roughness:.3}),-1.1,.98,f+1.0,.02));
- const pr=prodItem(sh.id);pr.position.set(-1.1,1.01,f+1.0);g.add(pr);
+ const pr=prodItem(sh.id);mergeStatic(pr);pr.position.set(-1.1,1.01,f+1.0);g.add(pr);
  g.add(cy(.05,.2,mat(0xffd54a,{metalness:.6,roughness:.3}),-2.45,1.11,f+.85,16));
- g.position.set(sh.x,0,sh.z);g.rotation.y=sh.rot;S.add(g);camBlock.push(...g.children);
+ g.position.set(sh.x,0,sh.z);g.rotation.y=sh.rot;S.add(g);g.updateMatrixWorld(true);g.matrixWorldAutoUpdate=false;camBlock.push(...g.children);
  const s=sh.rot?-1:1;cols.push({x0:sh.x-w/2,x1:sh.x+w/2,z0:Math.min(sh.z-s*f,sh.z+s*(f+1.45)),z1:Math.max(sh.z-s*f,sh.z+s*(f+1.45))});
  // vendedor(a)
  const k=mkChar({...shopLooks[i%shopLooks.length],h:1.62+Math.random()*.15,idle:AN.counter});k.position.set(sh.x+(-1.1)*s,0,sh.z+s*(f+.45));k.rotation.y=sh.rot;S.add(k);shopKeepers.push(k);
@@ -969,7 +986,7 @@ function shelfUnit(it){const g=new THREE.Group();const wd=mat(0xf4f4f2,{roughnes
  const lv=[.12,.62,1.12,1.6];lv.forEach(y=>g.add(box3(2.0,.035,.48,wd,0,y,0)));
  const big=it.q>15,n=big?4:5;for(const y of lv.slice(0,3))for(let i=0;i<n;i++){const p=packModel(it.ing);if(big)p.scale.setScalar(1.35);p.position.set(-.8+i*1.6/(n-1),y+.02,.02+(i%2)*.05);p.rotation.y=(Math.random()-.5)*.4;g.add(p)}
  const ig=ING[it.ing];const tag=canvasPlane(1.7,.53,512,160,(x,w,h)=>{x.fillStyle='#fff';x.fillRect(0,0,w,h);x.fillStyle='#c8322a';x.fillRect(0,0,w,22);x.fillStyle='#222';x.textAlign='center';x.font='bold 44px Segoe UI, Segoe UI Emoji';x.fillText(ig.n+' '+ig.nome.toUpperCase()+' ×'+it.q,w/2,74,w-24);x.fillStyle='#c8322a';x.font='900 52px Segoe UI';x.fillText('R$ '+it.p,w/2,138)},{glow:.15});tag.position.set(0,2.12,.05);g.add(tag);
- g.traverse(o=>{if(o.isMesh)o.castShadow=false});return g}
+ g.traverse(o=>{if(o.isMesh)o.castShadow=false});mergeStatic(g);return g}
 function mkShopInt(sh,i){const w=10,d=8,h=4.6,f=d/2,T=.2,s=sh.rot?-1:1;const g=new THREE.Group(),inner=new THREE.Group();g.add(inner);sh.inner=inner;
  const wallM=tmat(TX.stucco,w/1.5,h/1.5,{color:new THREE.Color(sh.cor).lerp(new THREE.Color(0xffffff),.72)}),inM=tmat(TX.plaster,3,1.6,{color:new THREE.Color(sh.cor).lerp(new THREE.Color(0xffffff),.86),roughness:.95});
  const WB=(ww,hh,dd,x,y,z,inF)=>{const ms=[];for(let k=0;k<6;k++)ms.push(k===inF?inM:wallM);const m=mesh(new THREE.BoxGeometry(ww,hh,dd),ms,x,y,z);g.add(m);return m};
@@ -1001,7 +1018,7 @@ function mkShopInt(sh,i){const w=10,d=8,h=4.6,f=d/2,T=.2,s=sh.rot?-1:1;const g=n
    else dg.add(box3(2.1,1.3,.04,mat(0xf4f1ea),0,1.65,-.31));
    const tag=canvasPlane(1.6,.4,512,128,(x,w,h)=>{x.fillStyle='#'+new THREE.Color(sh.cor).getHexString();x.fillRect(0,0,w,h);x.fillStyle='#fff';x.textAlign='center';x.font='900 54px Segoe UI, Segoe UI Emoji';x.fillText(sh.e+' VER E COMPRAR',w/2,84,w-20)},{glow:.3});tag.position.set(0,2.5,-.27);dg.add(tag);
    if(Math.abs(sp.r)>.1)colL(sp.x-.32,sp.x+.32,sp.z-1.03,sp.z+1.03);else colL(sp.x-1.03,sp.x+1.03,sp.z-.32,sp.z+.32);
-   const pp=W2(sp.x+Math.sin(sp.r)*.95,sp.z+Math.cos(sp.r)*.95);const st=station(dg,'ver:'+sh.id+':'+k,sh.e+' Ver produtos e comprar',pp.x,pp.z);st.store=sh;st.pos.y=1.3})}
+   mergeStatic(dg);const pp=W2(sp.x+Math.sin(sp.r)*.95,sp.z+Math.cos(sp.r)*.95);const st=station(dg,'ver:'+sh.id+':'+k,sh.e+' Ver produtos e comprar',pp.x,pp.z);st.store=sh;st.pos.y=1.3})}
  if(!upShop)sh.itens.filter(it=>it.ing).slice(0,4).forEach((it,k)=>{const sp=SPOT[k],su=shelfUnit(it);su.position.set(sp.x,.08,sp.z);su.rotation.y=sp.r;inner.add(su);
   if(Math.abs(sp.r)>.1)colL(sp.x-.27,sp.x+.27,sp.z-1.03,sp.z+1.03);else colL(sp.x-1.03,sp.x+1.03,sp.z-.27,sp.z+.27);
   const pp=W2(sp.x+Math.sin(sp.r)*.85,sp.z+Math.cos(sp.r)*.85),ig=ING[it.ing];const st=station(su,'pick:'+sh.id+':'+k,ig.n+' '+ig.nome+' ×'+it.q+' • R$ '+it.p,pp.x,pp.z);st.item=it;st.store=sh;st.pos.y=1.3});
@@ -1015,7 +1032,7 @@ function mkShopInt(sh,i){const w=10,d=8,h=4.6,f=d/2,T=.2,s=sh.rot?-1:1;const g=n
  {const cx=canvasPlane(1.3,.42,512,166,(x,w2,h2)=>{x.fillStyle='#'+new THREE.Color(sh.cor).getHexString();x.fillRect(0,0,w2,h2);x.fillStyle='#fff';x.textAlign='center';x.font='900 96px Segoe UI';x.fillText('💰 CAIXA',w2/2,122)},{glow:.4});cx.position.set(0,2.75,0);cx.rotation.y=Math.PI;cx.material.side=THREE.DoubleSide;ck.add(cx);ck.add(box3(.02,1.65,.02,mat(0x333333),-.5,3.78,0));ck.add(box3(.02,1.65,.02,mat(0x333333),.5,3.78,0))}
  colL(-.8,1.8,2.0,f-T);{const pp=W2(.5,1.4);const cs=station(ck,'caixa:'+sh.id,upShop?'💰 Balcão: ver e comprar':'💰 Caixa: pagar e melhorias',pp.x,pp.z);cs.store=sh;cs.pos.y=1.3}
  const k2=mkChar({...shopLooks[i%shopLooks.length],h:1.62+Math.random()*.15,idle:AN.counter});const kp=W2(.5,3.15);k2.position.set(kp.x,.08,kp.z);k2.rotation.y=sh.rot+Math.PI;S.add(k2);shopKeepers.push(k2);
- g.position.set(sh.x,0,sh.z);g.rotation.y=sh.rot;S.add(g);camBlock.push(...g.children.filter(o=>o.isMesh&&o.material!==glassM));
+ g.position.set(sh.x,0,sh.z);g.rotation.y=sh.rot;S.add(g);g.updateMatrixWorld(true);g.matrixWorldAutoUpdate=false;camBlock.push(...g.children.filter(o=>o.isMesh&&o.material!==glassM));
  // calçamento até a porta
  const z0=sh.z+s*f,z1=s>0?6.2:19.8;const pz=Math.min(z0,z1),pz2=Math.max(z0,z1),cx=sh.x+3.0*s;const pv=mesh(new THREE.BoxGeometry(4,.08,pz2-pz),tmat(TX.sidewalk,2,(pz2-pz)/2,{roughness:.9}),cx,.04,(pz+pz2)/2,false);S.add(pv);extraSide.push({x0:cx-2,x1:cx+2,z0:pz,z1:pz2});
  const el=document.createElement('div');el.className='lbl shop';el.textContent=sh.e+' '+sh.nome;$('labels').appendChild(el);
@@ -1224,7 +1241,7 @@ function mkJukebox(){const jb=new THREE.Group();jb.add(bx(.9,1.3,.6,mat(0x7a1d2a
  jb.add(bx(.6,.4,.02,new THREE.MeshStandardMaterial({color:0x111111,emissive:0x2a7fff,emissiveIntensity:.8}),0,.85,.31,.01));return jb}
 function mkLousa(){const lo=new THREE.Group();const bd=canvasPlane(.7,.9,256,330,(x,w,h)=>{x.fillStyle='#24302a';x.fillRect(0,0,w,h);x.strokeStyle='#8a6a44';x.lineWidth=14;x.strokeRect(0,0,w,h);x.fillStyle='#f4f1e8';x.textAlign='center';x.font='bold 34px Segoe UI';x.fillText('PROMO',w/2,60);x.font='60px Segoe UI Emoji';x.fillText('🍔🥓',w/2,150);x.font='bold 28px Segoe UI';x.fillText('X-BACON',w/2,215);x.fillStyle='#ffd54a';x.font='900 44px Segoe UI';x.fillText('R$ 11',w/2,280)});
  bd.position.set(0,.55,.12);bd.rotation.x=-.18;lo.add(bd);const bk=box3(.72,.92,.03,mat(0x8a6a44),0,.55,-.12);bk.rotation.x=.18;lo.add(bk);return lo}
-function mkFurn(f){if(f.t==='mesa')return mkTableG(L('decor')>=1||f.u,f.u);if(f.t==='cadeira'){const g=new THREE.Group();chair(g,0,0,0);return g}
+function mkFurn(f){if(f.t==='mesa'){const g=mkTableG(L('decor')>=1||f.u,f.u);mergeStatic(g);return g}if(f.t==='cadeira'){const g=new THREE.Group();chair(g,0,0,0);mergeStatic(g);return g}
  if(f.t==='planta')return mkPlant(f.id);if(f.t==='jukebox')return mkJukebox();if(f.t==='lousa')return mkLousa();return new THREE.Group()}
 function newF(t,x,z,r=0,u){const f={id:++G.fid,t,x,z,r};if(u)f.u=1;G.furn.push(f);return f}
 function ensureFurn(){if(G.furn)return;G.furn=[];G.fid=0;for(const k in TABLES){cleanTable(TABLES[k]);delete TABLES[k]}for(const k in SEATMAP)delete SEATMAP[k];
@@ -2002,14 +2019,15 @@ function loop(){requestAnimationFrame(loop);if(MAPA_TESTE){G.money=999999;G.fuel
  const t=performance.now()/1000;esther.visible=true;esther.position.set(4.5,.08,8);if(state==='menu'){esther.rotation.y=Math.sin(t*.6)*.35;cam.position.set(4.1+Math.sin(t*.15)*.4,1.25,10.8);cam.lookAt(3.35,.95,8)}else{const u=t*.05;cam.position.set(Math.sin(u)*16,6,10+Math.cos(u)*12);cam.lookAt(0,1.5,0);esther.rotation.y=Math.sin(u*3)*.6};animChar(esther,dt,0)}
  else if(state==='shop'){animChar(esther,dt,0);for(const k of shopKeepers)animChar(k,dt,0)}
  {const nl=$('nickLbl');if(state==='play'&&!player.car&&CFG.cam!=='1p'&&esther.visible){if(nl.textContent!==CFG.av.nick)nl.textContent=CFG.av.nick;nl.style.display=toScreen(V(esther.position.x,esther.position.y+esther.userData.h+.32,esther.position.z),nl)?'block':'none'}else nl.style.display='none'}
- netUpdate(dt);touchUI();charCull();composer?composer.render():R.render(S,cam);dynRes()}
+ netUpdate(dt);touchUI();charCull();sweepGPU();perfGov();composer?composer.render():R.render(S,cam);dynRes()}
 applyQuality();refreshStations();{const s=sunFor(DAY_LEN*.6);setSun(s.e,s.a,true)}
 $('loading').remove();
 if(location.protocol.startsWith('http')&&'serviceWorker' in navigator&&!location.hash.startsWith('#teste'))navigator.serviceWorker.register('sw.js').catch(()=>{});
 if(ENT_ERR)setTimeout(()=>confirmBox('🌐 Não deu pra entrar',esc(ENT_ERR),'OK',showMenu,showMenu),60);
 {let au=0;try{au=sessionStorage.getItem('cqAuto');sessionStorage.removeItem('cqAuto')}catch(e){}if(au&&(CUR||GUEST)&&!location.hash.startsWith('#teste'))setTimeout(()=>startDay(),50)}
 // modo de teste (capturas automáticas): index.html#teste=...
-window.__CQ={H,dayStats:()=>dayStats,buildHelpers,cam,charCull,THREE_F:THREE.Frustum,NET,netSend,netHostT:()=>{NET.want=true;netSend({t:'host',name:'Lobby Teste',av:CFG.av,G})},showAvatar,showCreate,showMenuX:()=>showMenu(),pauseX:()=>pause(),bDoorX:()=>bDoor,autoDeliver,storeAct,stations,payCart,returnCart,deliverDrive,spawnDrive,dcars:()=>dcars,dSet:a=>{dburgers=a;rebuildD()},buildShell,QX,inBooth,closeShop,drawShop,cartObj,S_WIN,EDIT,toggleEdit,pickF,placeF,rotF,editUpdate,validFurn,autoPlace,newF,addTableSet,buildFurn,findPath,refreshStations,zones,FT,getFZ:()=>[FZ,RX],buy,UP,cars,V,PC,POSTO,enterCar,exitCar,openFuel,updateCar,BASE,setChar,startClean,interact,target:()=>target,S,cam,R,G,player,customers:()=>customers,spawn,startDay,mkChar,mkBurger,mkMeal,mkLeftovers,play,playOnce,animChar,CHARS,esther:()=>esther,seats:()=>seats,TABLES,makeDirty,addSpill,holdMop,openShop,SHOPS,showControls,act,deliver,served,sitDown,startEat,update,setState:s=>state=s,getState:()=>state,ANIM,dirtyCount,setT:v=>tLeft=v,burgerSet:b=>{burgers=b?[b]:[];activeB=0;rebuildStack()},burgersSet:a=>{burgers=a;rebuildStack()},MACH,fry:()=>fry,drk:()=>drk,setReady:(f,d)=>{fry.ready=f;drk.ready=d}};
+window.__CQ={PG,H,dayStats:()=>dayStats,buildHelpers,cam,charCull,THREE_F:THREE.Frustum,NET,netSend,netHostT:()=>{NET.want=true;netSend({t:'host',name:'Lobby Teste',av:CFG.av,G})},showAvatar,showCreate,showMenuX:()=>showMenu(),pauseX:()=>pause(),bDoorX:()=>bDoor,autoDeliver,storeAct,stations,payCart,returnCart,deliverDrive,spawnDrive,dcars:()=>dcars,dSet:a=>{dburgers=a;rebuildD()},buildShell,QX,inBooth,closeShop,drawShop,cartObj,S_WIN,EDIT,toggleEdit,pickF,placeF,rotF,editUpdate,validFurn,autoPlace,newF,addTableSet,buildFurn,findPath,refreshStations,zones,FT,getFZ:()=>[FZ,RX],buy,UP,cars,V,PC,POSTO,enterCar,exitCar,openFuel,updateCar,BASE,setChar,startClean,interact,target:()=>target,S,cam,R,G,player,customers:()=>customers,spawn,startDay,mkChar,mkBurger,mkMeal,mkLeftovers,play,playOnce,animChar,CHARS,esther:()=>esther,seats:()=>seats,TABLES,makeDirty,addSpill,holdMop,openShop,SHOPS,showControls,act,deliver,served,sitDown,startEat,update,setState:s=>state=s,getState:()=>state,ANIM,dirtyCount,setT:v=>tLeft=v,burgerSet:b=>{burgers=b?[b]:[];activeB=0;rebuildStack()},burgersSet:a=>{burgers=a;rebuildStack()},MACH,fry:()=>fry,drk:()=>drk,setReady:(f,d)=>{fry.ready=f;drk.ready=d}};
 if(location.hash.startsWith('#teste')){const sc=document.createElement('script');sc.src='teste_jogo.js';document.body.appendChild(sc)}
+GPU_BOOT_G=new THREE.BufferGeometry().id;GPU_BOOT_T=new THREE.Texture().id;
 showMenu();loop();
 </script></body></html>
