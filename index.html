@@ -377,7 +377,7 @@ const cellP=k=>V(NX0+(k%NW+.5)*NC,0,NZ0+((k/NW|0)+.5)*NC);
 function buildNav(extra=[],temp){const g=new Uint8Array(NW*NH),inf=.3;
  const mark=(x0,x1,z0,z1)=>{const i0=Math.max(0,Math.floor((x0-NX0)/NC)),i1=Math.min(NW-1,Math.floor((x1-NX0)/NC)),j0=Math.max(0,Math.floor((z0-NZ0)/NC)),j1=Math.min(NH-1,Math.floor((z1-NZ0)/NC));for(let j=j0;j<=j1;j++)for(let i=i0;i<=i1;i++)g[j*NW+i]=1};
  for(const c of cols.concat(extra)){if(c===doorCol||c.x0>1e4)continue;mark(c.x0-inf,c.x1+inf,c.z0-inf,c.z1+inf)}
- mark(-7.25,RX+.125,-6.25,-.4);mark(NX0,NX0+NW*NC,9.7,99);
+ mark(-7.25,L('exp')>=2?7.25:RX+.125,-6.25,-.4);mark(NX0,NX0+NW*NC,9.7,99);
  if(temp)return g;NAV=g;const door=V(4,0,FZ-.7);for(const s of seats)s.ok=!!findPath(door,seatAppr(s));return g}
 function freeNear(g,i,j){if(!g[j*NW+i])return j*NW+i;for(let r=1;r<10;r++)for(let dj=-r;dj<=r;dj++)for(let di=-r;di<=r;di++){if(Math.abs(di)!==r&&Math.abs(dj)!==r)continue;const a=i+di,b=j+dj;if(a>=0&&b>=0&&a<NW&&b<NH&&!g[b*NW+a])return b*NW+a}return -1}
 function losG(g,a,b){const d=Math.hypot(b.x-a.x,b.z-a.z),n=Math.ceil(d/.1);for(let k=1;k<n;k++){const t=k/n,[i,j]=nIdx({x:a.x+(b.x-a.x)*t,z:a.z+(b.z-a.z)*t});if(g[j*NW+i])return false}return true}
@@ -422,6 +422,8 @@ function buildShell(){FZ=EXPF();RX=EXPR();shellLv=L('exp');shell.clear();NAV=nul
   const plq2=plq.clone();plq2.position.x=-.035;plq2.rotation.y=-Math.PI/2;pv.add(plq2);
   add(pv);bDoor=pv;bDoor.rotation.y=bDoorA}
  add(wall(.25,WH,D,RX,WH/2,cz,1),1);col(RX-.125,RX+.125,-6.25,FZ+.125);
+ // anexo (nível 2): parede separando a cozinha do salão novo
+ if(L('exp')>=2){const len=5.7;add(mesh(new THREE.BoxGeometry(.25,WH,len),wallMat(len,WH),7.125,WH/2,-6.125+len/2),1);col(7,7.25,-6.25,-.4)}
  // fachada com vitrines e porta (x 3..5)
  add(wall(10.25,.9,.25,-2.125,.45,FZ,5));add(wall(RX-4.875,.9,.25,(RX+5.125)/2,.45,FZ,5));add(wall(W,1.5,.25,cx,WH-.75,FZ,5),1);
  const pil=[-7.05,-2,2.8,5.2,RX-.075];if(RX>8)pil.push((5.2+RX)/2);pil.forEach(x=>add(wall(.4,1.8,.25,x,1.8,FZ,5),1));
@@ -444,7 +446,8 @@ function buildShell(){FZ=EXPF();RX=EXPR();shellLv=L('exp');shell.clear();NAV=nul
  signPlain.position.z=FZ+.175;signNeon.position.z=FZ+.195;add(box3(6.6,1.7,.15,mat(0x222222,{metalness:.7}),0,4.95,FZ+.075));
  // pisos
  {const fw=RX+6.875,dd=FZ+1.475;const f=mesh(new THREE.PlaneGeometry(fw,dd),floorMat(fw,dd),cx,.085,(FZ-1.725)/2,false);f.rotation.x=-Math.PI/2;add(f);
-  const k=mesh(new THREE.PlaneGeometry(fw,4.6),tmat(TX.ktile,fw/2,2.3,{roughness:.5}),cx,.086,-3.9,false);k.rotation.x=-Math.PI/2;add(k);
+  const an=L('exp')>=2,kw=an?14.25:fw;const k=mesh(new THREE.PlaneGeometry(kw,4.6),tmat(TX.ktile,kw/2,2.3,{roughness:.5}),an?0:cx,.086,-3.9,false);k.rotation.x=-Math.PI/2;add(k);
+  if(an){const aw=RX-7.125;const f2=mesh(new THREE.PlaneGeometry(aw,4.6),floorMat(aw,4.6),7.125+aw/2,.086,-3.9,false);f2.rotation.x=-Math.PI/2;add(f2)}
   add(box3(W+.1,.08,12.6,mat(0x8a8a8a),cx,.04,0))}
  // luminárias internas
  {const lx=[];for(let x=-4;x<=RX-2.5;x+=4)lx.push(x);for(const z of[-3,Math.min(2.5,FZ-2)])lx.forEach((x,i)=>{add(cy(.35,.06,lampM,x,WH-.04,z));if(i%2===0||(z>0&&i===3)){const l=new THREE.PointLight(0xffe3bd,9,14,1.6);l.position.set(x,WH-.3,z);add(l)}})}
@@ -1230,8 +1233,8 @@ function buildDecor(){ensureFurn();decor.clear();const d=L('decor');const keep=c
  signNeon.visible=L('mkt')>0;signPlain.visible=!signNeon.visible;
  buildHelpers();
  buildFurn()}
-function refreshStations(){if(shellLv!==L('exp'))buildShell();refreshBins();for(const k in MACH)MACH[k].obj.visible=L(k)>0;rebuildStack();bins.cheese.visible=L('cheese')>0;bins.salad.visible=L('salad')>0;bins.bacon.visible=L('bacon')>0;fryer.visible=L('fries')>0;drink.visible=L('drink')>0;
- slots.forEach((s,i)=>s.pad.visible=i<2+L('grill'));dslots.forEach((s,i)=>s.pad.visible=i<dSlotsN());dBins.queijo.visible=L('cheese')>0;buildDecor()}
+function refreshStations(){const shCh=shellLv!==L('exp');if(shCh)buildShell();refreshBins();for(const k in MACH)MACH[k].obj.visible=L(k)>0;rebuildStack();bins.cheese.visible=L('cheese')>0;bins.salad.visible=L('salad')>0;bins.bacon.visible=L('bacon')>0;fryer.visible=L('fries')>0;drink.visible=L('drink')>0;
+ slots.forEach((s,i)=>s.pad.visible=i<2+L('grill'));dslots.forEach((s,i)=>s.pad.visible=i<dSlotsN());dBins.queijo.visible=L('cheese')>0;buildDecor();if(shCh)fixFurn()}
 // =============== MÓVEIS (dá pra mudar de lugar: modo mobília, tecla M) ===============
 const FT={mesa:{r:.62,c:.6,n:'🪑 Mesa'},cadeira:{r:.26,c:0,n:'🪑 Cadeira'},planta:{r:.34,c:.3,n:'🪴 Planta'},jukebox:{r:.55,c:.45,n:'🎵 Jukebox'},balde:{r:.34,c:.28,n:'🧽 Balde do esfregão'},lousa:{r:.42,c:.35,n:'📋 Lousa de promoção'}};
 const FY={balde:.08,lousa:.08,jukebox:.08};
@@ -1249,7 +1252,7 @@ function ensureFurn(){if(G.furn)return;G.furn=[];G.fid=0;for(const k in TABLES){
  newF('planta',-6.45,4.3);newF('planta',6.45,4.3);newF('balde',6.45,.35);newF('lousa',6.4,7.4,-.5);
  buildFurn();// jogo salvo antigo: mesas compradas viram móveis
  for(let i=0;i<L('tables')+(L('decor')>=2?1:0);i++)addTableSet(false);if(L('patio'))for(let i=0;i<2;i++)addTableSet(true);
- if(L('decor')>=3)autoPlace(newF('jukebox',0,0,Math.PI/2));for(let i=0;i<L('chair');i++)autoPlace(newF('cadeira',0,0))}
+ if(L('decor')>=3)placeJuke(newF('jukebox',0,0,Math.PI/2));for(let i=0;i<L('chair');i++)autoPlace(newF('cadeira',0,0))}
 function buildFurn(){for(let i=cols.length-1;i>=0;i--)if(cols[i].f)cols.splice(i,1);const alive=new Set();
  for(const f of G.furn){alive.add(f.id);const key=f.t+(f.t==='mesa'?(L('decor')>=1?1:0)+(f.u?2:0):'');let o=f.t==='balde'?mopSt:FOBJ[f.id];
   if(f.t!=='balde'&&(!o||o.userData.key!==key)){if(o)furnG.remove(o);o=mkFurn(f);o.userData.key=key;FOBJ[f.id]=o;furnG.add(o)}
@@ -1263,7 +1266,7 @@ function buildFurn(){for(let i=cols.length-1;i>=0;i--)if(cols[i].f)cols.splice(i
  buildNav()}
 const seatAppr=s=>{const dx=s.x-s.tx,dz=s.z-s.tz,d=Math.hypot(dx,dz)||1;return V(s.x+dx/d*.35,0,s.z+dz/d*.35)};
 // onde dá pra pôr móveis: salão, cantinhos perto do balcão, calçada da frente e o deck
-function zones(){const z=[[-6.85,RX-.3,1.9,FZ-.25],[-6.9,-6.15,-.05,1.9],[6.15,RX-.2,-.05,1.9],[-7.2,RX+.1,FZ+.45,8.1]];if(L('exp')>=3){const x0=RX+.675;z.push([x0+.25,x0+5.35,-2.5,5.6])}return z}
+function zones(){const z=[[-6.85,RX-.3,1.9,FZ-.25],[-6.9,-6.15,-.05,1.9],[6.15,RX-.2,-.05,1.9],[-7.2,RX+.1,FZ+.45,8.1]];if(L('exp')>=2)z.push([7.45,RX-.3,-5.85,-.15]);if(L('exp')>=3){const x0=RX+.675;z.push([x0+.25,x0+5.35,-2.5,5.6])}return z}
 const NOZ=()=>[[2.3,5.7,FZ-1.5,9]];// passagem da porta
 function validFurn(f,x,z,noNav){const r=FT[f.t].r,e=.001;
  if(!zones().some(b=>x-r>=b[0]-e&&x+r<=b[1]+e&&z-r>=b[2]-e&&z+r<=b[3]+e))return false;
@@ -1276,11 +1279,26 @@ function validFurn(f,x,z,noNav){const r=FT[f.t].r,e=.001;
 let TGAP=2;const chairsAt=t=>G.furn.filter(c=>c.t==='cadeira'&&Math.hypot(c.x-t.x,c.z-t.z)<1.3).length;
 function autoPlace(f,around,pref){f.hold=true;buildFurn();let ok=false;const r=FT[f.t].r;
  if(f.t==='cadeira'){const ts=around?[around]:G.furn.filter(t=>t.t==='mesa'&&!t.hold).sort((a,b)=>chairsAt(a)-chairsAt(b));
-  outer:for(const t of ts)for(const a of[0,Math.PI/2,-Math.PI/2,Math.PI,Math.PI/4,-Math.PI/4,3*Math.PI/4,-3*Math.PI/4]){const x=t.x+Math.sin(a)*.85,z=t.z+Math.cos(a)*.85;if(validFurn(f,x,z)){f.x=x;f.z=z;ok=true;break outer}}}
+  for(const nn of[false,true]){if(ok)break;outer:for(const t of ts)for(const a of[0,Math.PI/2,-Math.PI/2,Math.PI,Math.PI/4,-Math.PI/4,3*Math.PI/4,-3*Math.PI/4]){const x=t.x+Math.sin(a)*.85,z=t.z+Math.cos(a)*.85;if(validFurn(f,x,z,nn)){f.x=x;f.z=z;ok=true;break outer}}}
+  // sem lugar perto de mesa: a cadeira não fica solta no salão
+  if(!ok){const i=G.furn.indexOf(f);if(i>=0)G.furn.splice(i,1);delete f.hold;buildFurn();return false}}
  for(const [noNav,gap] of[[false,2.6],[false,2],[true,2]]){if(ok)break;TGAP=gap;let zs=zones();if(pref!=null)zs=[zs[pref],...zs.filter((_,i)=>i!==pref)];
   outer2:for(const b of zs)for(let z=b[2]+r;z<=b[3]-r+.001;z+=.25)for(let x=b[0]+r;x<=b[1]-r+.001;x+=.25){const sx=Math.round(x*4)/4,sz=Math.round(z*4)/4;if(validFurn(f,sx,sz,noNav)){f.x=sx;f.z=sz;ok=true;break outer2}}}
  TGAP=2;if(!ok){f.x=-6+Math.random();f.z=7.6}delete f.hold;buildFurn();return ok}
-function addTableSet(umb){const t=newF('mesa',0,0,0,umb);const ok=autoPlace(t,null,umb?3:0);for(let i=0;i<2;i++)autoPlace(newF('cadeira',0,0,0),t);return ok}
+function addTableSet(umb,pref,at){const t=newF('mesa',0,0,0,umb);let ok=false;if(at){t.hold=true;buildFurn();if(validFurn(t,at[0],at[1])){t.x=at[0];t.z=at[1];ok=true}delete t.hold;buildFurn()}if(!ok)ok=autoPlace(t,null,pref!=null?pref:umb?3:0);for(let i=0;i<2;i++)autoPlace(newF('cadeira',0,0,0),t);return ok}
+// jukebox encostada na parede (não no meio das mesas)
+function placeJuke(f){const sp=[[-6.3,FZ-.8,Math.PI/2],[-6.3,2.45,Math.PI/2]];f.hold=true;buildFurn();
+ for(const [x,z,r] of sp)if(validFurn(f,x,z)){f.x=x;f.z=z;f.r=r;delete f.hold;buildFurn();return true}delete f.hold;return autoPlace(f)}
+// depois de ampliar (ou ao carregar): tira móveis de dentro das paredes, junta cadeiras soltas às mesas e mobilia a área nova
+function fixFurn(){if(!G.furn)return;const ok=f=>validFurn(f,f.x,f.z,true);
+ for(const t of G.furn.filter(f=>f.t==='mesa')){if(ok(t))continue;const ch=G.furn.filter(c=>c.t==='cadeira'&&Math.hypot(c.x-t.x,c.z-t.z)<1.3);ch.forEach(c=>c.hold=true);autoPlace(t,null,t.u?3:0);for(const c of ch){delete c.hold;autoPlace(c,t)}}
+ for(const c of G.furn.filter(f=>f.t==='cadeira')){const near=G.furn.some(t=>t.t==='mesa'&&Math.hypot(t.x-c.x,t.z-c.z)<1.3);if(near&&ok(c))continue;autoPlace(c)}
+ const hitW=f=>{const r=FT[f.t].r;return cols.some(c=>!c.f&&c!==doorCol&&c.x0<1e4&&f.x+r>c.x0&&f.x-r<c.x1&&f.z+r>c.z0&&f.z-r<c.z1)};
+ for(const f of G.furn.filter(f=>f.t!=='mesa'&&f.t!=='cadeira'))if(hitW(f))f.t==='jukebox'?placeJuke(f):autoPlace(f);
+ if(!G.jbFix){G.jbFix=1;const jb=G.furn.find(f=>f.t==='jukebox');if(jb)placeJuke(jb)}
+ // mesas de presente em cada ampliação: nível 1 +1 no salão, nível 2 +2 no anexo (corredor livre do lado da parede), nível 3 +2 com guarda-sol no deck
+ G.expT=G.expT||0;while(G.expT<L('exp')){G.expT++;const n=[0,1,2,2][G.expT],pref=[0,0,4,5][G.expT],at=G.expT===2?[[9.9,-4.9],[9.9,-2.2]]:[];for(let i=0;i<n;i++)addTableSet(G.expT===3,pref,at[i])}
+ buildFurn()}
 // ---- modo mobília ----
 const EDIT={held:null,orig:null,ok:false,key:''};
 const ringM=new THREE.MeshBasicMaterial({color:0x3ccf6e,transparent:true,opacity:.65,depthWrite:false,side:THREE.DoubleSide,toneMapped:false});
@@ -1771,8 +1789,8 @@ function drawShop(){const sh=shopOpen;ovReset();$('ov').style.display='flex';if(
  const bs=menuBtns();menuIdx=Math.min(menuIdx,bs.length-1);bs.forEach((x,i)=>x.classList.toggle('foc',i===menuIdx))}
 function buy(it){if(it.up){const u=UP.find(x=>x.id===it.up),cost=u.c[L(u.id)];if(cost==null||G.money<cost||(u.day&&G.day<u.day))return;G.money-=cost;G.lv[u.id]=L(u.id)+1;refreshStations();msg('Comprado: '+u.nome);
   const fm=t=>msg('Comprado: '+u.nome+' • '+t+' (na lanchonete aperte M pra arrumar)');
-  if(u.id==='tables'){addTableSet(false);fm('mesa nova no salão')}if(u.id==='patio'){addTableSet(true);addTableSet(true);fm('mesas na calçada')}if(u.id==='chair'){autoPlace(newF('cadeira',0,0));fm('cadeira nova')}
-  if(u.id==='decor'&&L('decor')===3&&!G.furn.some(f=>f.t==='jukebox')){autoPlace(newF('jukebox',0,0,Math.PI/2));fm('jukebox nova')}if(u.id==='exp')msg('🏗️ Lanchonete ampliada!')}
+  if(u.id==='tables'){addTableSet(false);fm('mesa nova no salão')}if(u.id==='patio'){addTableSet(true);addTableSet(true);fm('mesas na calçada')}if(u.id==='chair'){if(autoPlace(newF('cadeira',0,0)))fm('cadeira nova');else{G.money+=cost;G.lv.chair--;msg('🪑 Sem lugar perto das mesas: compre mais mesas (dinheiro devolvido)')}}
+  if(u.id==='decor'&&L('decor')===3&&!G.furn.some(f=>f.t==='jukebox')){placeJuke(newF('jukebox',0,0,Math.PI/2));fm('jukebox nova')}if(u.id==='exp')msg('🏗️ Lanchonete ampliada! Mesas novas na área nova')}
  else{if(G.money<it.p)return;G.money-=it.p;G.stock[it.ing]+=it.q;refreshBins();msg(`+${it.q} ${ING[it.ing].n} ${ING[it.ing].nome}`)}
  save();sCash();drawShop()}
 function closeShop(){shopOpen=null;state='play';$('ov').style.display='none';lockPtr()}
@@ -2026,7 +2044,7 @@ if(location.protocol.startsWith('http')&&'serviceWorker' in navigator&&!location
 if(ENT_ERR)setTimeout(()=>confirmBox('🌐 Não deu pra entrar',esc(ENT_ERR),'OK',showMenu,showMenu),60);
 {let au=0;try{au=sessionStorage.getItem('cqAuto');sessionStorage.removeItem('cqAuto')}catch(e){}if(au&&(CUR||GUEST)&&!location.hash.startsWith('#teste'))setTimeout(()=>startDay(),50)}
 // modo de teste (capturas automáticas): index.html#teste=...
-window.__CQ={PG,H,dayStats:()=>dayStats,buildHelpers,cam,charCull,THREE_F:THREE.Frustum,NET,netSend,netHostT:()=>{NET.want=true;netSend({t:'host',name:'Lobby Teste',av:CFG.av,G})},showAvatar,showCreate,showMenuX:()=>showMenu(),pauseX:()=>pause(),bDoorX:()=>bDoor,autoDeliver,storeAct,stations,payCart,returnCart,deliverDrive,spawnDrive,dcars:()=>dcars,dSet:a=>{dburgers=a;rebuildD()},buildShell,QX,inBooth,closeShop,drawShop,cartObj,S_WIN,EDIT,toggleEdit,pickF,placeF,rotF,editUpdate,validFurn,autoPlace,newF,addTableSet,buildFurn,findPath,refreshStations,zones,FT,getFZ:()=>[FZ,RX],buy,UP,cars,V,PC,POSTO,enterCar,exitCar,openFuel,updateCar,BASE,setChar,startClean,interact,target:()=>target,S,cam,R,G,player,customers:()=>customers,spawn,startDay,mkChar,mkBurger,mkMeal,mkLeftovers,play,playOnce,animChar,CHARS,esther:()=>esther,seats:()=>seats,TABLES,makeDirty,addSpill,holdMop,openShop,SHOPS,showControls,act,deliver,served,sitDown,startEat,update,setState:s=>state=s,getState:()=>state,ANIM,dirtyCount,setT:v=>tLeft=v,burgerSet:b=>{burgers=b?[b]:[];activeB=0;rebuildStack()},burgersSet:a=>{burgers=a;rebuildStack()},MACH,fry:()=>fry,drk:()=>drk,setReady:(f,d)=>{fry.ready=f;drk.ready=d}};
+window.__CQ={cols,placeJuke,PG,H,dayStats:()=>dayStats,buildHelpers,cam,charCull,THREE_F:THREE.Frustum,NET,netSend,netHostT:()=>{NET.want=true;netSend({t:'host',name:'Lobby Teste',av:CFG.av,G})},showAvatar,showCreate,showMenuX:()=>showMenu(),pauseX:()=>pause(),bDoorX:()=>bDoor,autoDeliver,storeAct,stations,payCart,returnCart,deliverDrive,spawnDrive,dcars:()=>dcars,dSet:a=>{dburgers=a;rebuildD()},buildShell,QX,inBooth,closeShop,drawShop,cartObj,S_WIN,EDIT,toggleEdit,pickF,placeF,rotF,editUpdate,validFurn,autoPlace,newF,addTableSet,buildFurn,findPath,refreshStations,zones,FT,getFZ:()=>[FZ,RX],buy,UP,cars,V,PC,POSTO,enterCar,exitCar,openFuel,updateCar,BASE,setChar,startClean,interact,target:()=>target,S,cam,R,G,player,customers:()=>customers,spawn,startDay,mkChar,mkBurger,mkMeal,mkLeftovers,play,playOnce,animChar,CHARS,esther:()=>esther,seats:()=>seats,TABLES,makeDirty,addSpill,holdMop,openShop,SHOPS,showControls,act,deliver,served,sitDown,startEat,update,setState:s=>state=s,getState:()=>state,ANIM,dirtyCount,setT:v=>tLeft=v,burgerSet:b=>{burgers=b?[b]:[];activeB=0;rebuildStack()},burgersSet:a=>{burgers=a;rebuildStack()},MACH,fry:()=>fry,drk:()=>drk,setReady:(f,d)=>{fry.ready=f;drk.ready=d}};
 if(location.hash.startsWith('#teste')){const sc=document.createElement('script');sc.src='teste_jogo.js';document.body.appendChild(sc)}
 GPU_BOOT_G=new THREE.BufferGeometry().id;GPU_BOOT_T=new THREE.Texture().id;
 showMenu();loop();
